@@ -1,0 +1,2 @@
+.github/workflows/immortalwrt-builder-selfhost.yml:24.10.0-rc2
+.github/workflows/immortalwrt-builder.yml:24.10.0-rc2
