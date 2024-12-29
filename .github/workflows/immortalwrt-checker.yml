@@ -50,7 +50,7 @@ jobs:
           fi
         done < current_versions.txt
         echo "needs_update=$needs_update" >> $GITHUB_ENV
-        echo -e "$files_to_update" > files_to_update.txt
+        echo -e "$files_to_update" | sed '/^$/d' > files_to_update.txt
         if [ "$needs_update" = "false" ]; then
           echo "No bump needed."
         fi
@@ -59,8 +59,12 @@ jobs:
       if: env.needs_update == 'true'
       run: |
         while IFS= read -r file; do
-          sed -i "s/REPO_BRANCH: .*/REPO_BRANCH: ${{ env.latest_version }}/" "$file"
-          echo "Updated REPO_BRANCH to ${{ env.latest_version }} in $file."
+          if [ -f "$file" ]; then
+            sed -i "s/REPO_BRANCH: .*/REPO_BRANCH: ${{ env.latest_version }}/" "$file"
+            echo "Updated REPO_BRANCH to ${{ env.latest_version }} in $file."
+          else
+            echo "Warning: File $file does not exist. Skipping."
+          fi
         done < files_to_update.txt
 
     - name: Prepare list of updated files
