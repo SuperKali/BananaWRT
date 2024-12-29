@@ -39,15 +39,18 @@ jobs:
       id: check_update
       run: |
         needs_update=false
+        files_to_update=""
         while IFS= read -r line; do
           file=$(echo "$line" | cut -d':' -f1)
           current_version=$(echo "$line" | cut -d':' -f2)
           if [ "$current_version" != "${{ env.latest_version }}" ]; then
             echo "File $file needs update: $current_version -> ${{ env.latest_version }}"
             needs_update=true
+            files_to_update="$files_to_update$file\n"
           fi
         done < current_versions.txt
         echo "needs_update=$needs_update" >> $GITHUB_ENV
+        echo -e "$files_to_update" > files_to_update.txt
         if [ "$needs_update" = "false" ]; then
           echo "No bump needed."
         fi
@@ -55,14 +58,17 @@ jobs:
     - name: Update REPO_BRANCH in YAML files
       if: env.needs_update == 'true'
       run: |
-        while IFS= read -r line; do
-          file=$(echo "$line" | cut -d':' -f1)
-          current_version=$(echo "$line" | cut -d':' -f2)
-          if [ "$current_version" != "${{ env.latest_version }}" ]; then
-            sed -i "s/REPO_BRANCH: .*/REPO_BRANCH: ${{ env.latest_version }}/" "$file"
-            echo "Updated REPO_BRANCH to ${{ env.latest_version }} in $file."
-          fi
-        done < current_versions.txt
+        while IFS= read -r file; do
+          sed -i "s/REPO_BRANCH: .*/REPO_BRANCH: ${{ env.latest_version }}/" "$file"
+          echo "Updated REPO_BRANCH to ${{ env.latest_version }} in $file."
+        done < files_to_update.txt
+
+    - name: Prepare list of updated files
+      if: env.needs_update == 'true'
+      run: |
+        while IFS= read -r file; do
+          echo "- $file" >> updated_files_list.txt
+        done < files_to_update.txt
 
     - name: Create a pull request
       if: env.needs_update == 'true'
@@ -76,6 +82,5 @@ jobs:
           This pull request bumps ImmortalWRT to the latest version: v${{ env.latest_version }}.
 
           Changes:
-          - Updated `REPO_BRANCH:` to `v${{ env.latest_version }}` in the following files:
-            $(awk -F: '{print "            - "$1}' current_versions.txt)
+          $(cat updated_files_list.txt)
         labels: bump, immortalwrt, v${{ env.latest_version }}
