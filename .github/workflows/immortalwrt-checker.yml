@@ -72,15 +72,14 @@ jobs:
     - name: Format files to update
       if: env.needs_update == 'true'
       run: |
-        IFS=' ' read -r -a files <<< "${{ env.files_to_update }}"
-        formatted_files=""
-        for file in "${files[@]}"; do
-        file_basename=$(basename "$file")
-        formatted_files+="- $file_basename\n"
-        done
-        echo "files_formatted=${formatted_files}" >> $GITHUB_ENV
-        echo "Formatted files list:\n$formatted_files"
-      
+          IFS=' ' read -r -a files <<< "${{ env.files_to_update }}"
+          formatted_files=""
+          for file in "${files[@]}"; do
+            formatted_files+="- $(basename "$file")\n"
+          done
+          formatted_files=$(echo -e "$formatted_files" | sed '$ s/\\n$//')
+          echo "files_formatted=${formatted_files}" >> $GITHUB_ENV
+          echo "Formatted files list:\n$formatted_files"
 
     - name: Create a pull request
       if: env.needs_update == 'true'
