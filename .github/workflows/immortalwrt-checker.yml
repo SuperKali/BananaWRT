@@ -22,55 +22,52 @@ jobs:
       id: get_latest_version
       run: |
         latest_version=$(curl -s https://api.github.com/repos/immortalwrt/immortalwrt/tags | jq -r '.[0].name' | sed 's/^v//')
+        if [ -z "$latest_version" ]; then
+          echo "Error: Failed to fetch the latest version." >&2
+          exit 1
+        fi
         echo "latest_version=$latest_version" >> $GITHUB_ENV
         echo "Latest version: $latest_version"
 
-    - name: Get the current version
-      id: get_current_version
+    - name: Check files for REPO_BRANCH updates
+      id: check_files
       run: |
-        current_version=$(grep 'REPO_BRANCH:' .github/workflows/immortalwrt-builder*.yml | head -1 | awk '{print $2}')
-        echo "current_version=$current_version" >> $GITHUB_ENV
-        echo "Current version: $current_version"
-
-    - name: Verify target files
-      run: |
+        if [ -z "${{ env.latest_version }}" ]; then
+          echo "Error: latest_version is not set." >&2
+          exit 1
+        fi
+        files_to_update=()
         for file in .github/workflows/immortalwrt-builder*.yml; do
-          if ! grep -q 'REPO_BRANCH:' "$file"; then
-            echo "Error: $file does not contain REPO_BRANCH. Check the file consistency." >&2
-            exit 1
+          if [ -f "$file" ]; then
+            file_version=$(grep -m 1 'REPO_BRANCH:' "$file" | awk -F': ' '{if (NF > 1) {gsub(/^ +| +$/, "", $2); print $2}}')
+            if [ "$file_version" != "${{ env.latest_version }}" ]; then
+              echo "File $file needs update: $file_version -> ${{ env.latest_version }}"
+              files_to_update+=("$file")
+            else
+              echo "File $file is up-to-date."
+            fi
+          else
+            echo "Warning: File $file does not exist."
           fi
         done
-        echo "All target files are consistent."
 
-    - name: Check if a bump is needed
-      id: check_update
-      run: |
-        if [ "${{ env.latest_version }}" != "${{ env.current_version }}" ]; then
-          echo "needs_update=true" >> $GITHUB_ENV
-          echo "A bump is needed: ${current_version} -> ${latest_version}"
-        else
+        if [ ${#files_to_update[@]} -eq 0 ]; then
+          echo "All files are up-to-date."
           echo "needs_update=false" >> $GITHUB_ENV
-          echo "No bump needed."
+        else
+          echo "Files to update: ${files_to_update[@]}"
+          echo "needs_update=true" >> $GITHUB_ENV
+          echo "files_to_update=${files_to_update[@]}" >> $GITHUB_ENV
         fi
 
-    - name: Update REPO_BRANCH in all YAML files
+    - name: Update files with new REPO_BRANCH
       if: env.needs_update == 'true'
       run: |
-        for file in .github/workflows/immortalwrt-builder*.yml; do
+        IFS=' ' read -r -a files <<< "${{ env.files_to_update }}"
+        for file in "${files[@]}"; do
           sed -i "s/REPO_BRANCH: .*/REPO_BRANCH: ${{ env.latest_version }}/" "$file"
-          echo "Updated REPO_BRANCH to ${{ env.latest_version }} in $file."
+          echo "Updated REPO_BRANCH in $file to ${{ env.latest_version }}."
         done
-
-    - name: Verify modifications
-      if: env.needs_update == 'true'
-      run: |
-        for file in .github/workflows/immortalwrt-builder*.yml; do
-          if ! grep -q "REPO_BRANCH: ${{ env.latest_version }}" "$file"; then
-            echo "Error: $file was not correctly updated." >&2
-            exit 1
-          fi
-        done
-        echo "All target files were successfully updated to REPO_BRANCH: ${{ env.latest_version }}."
 
     - name: Create a pull request
       if: env.needs_update == 'true'
@@ -81,8 +78,10 @@ jobs:
         commit-message: 'Bump ImmortalWRT to version v${{ env.latest_version }}'
         title: 'Bump ImmortalWRT to version v${{ env.latest_version }}'
         body: |
-          This pull request bumps ImmortalWRT to the latest version: v${{ env.latest_version }}.
+          This pull request updates the following files to the latest ImmortalWRT version (v${{ env.latest_version }}):
+
+          ${{ env.files_to_update }}
 
           Changes:
-          - Updated `REPO_BRANCH:` to `v${{ env.latest_version }}` in all `.github/workflows/immortalwrt-builder*.yml` files.
+          - Updated `REPO_BRANCH:` to `v${{ env.latest_version }}`.
         labels: bump, immortalwrt, v${{ env.latest_version }}
