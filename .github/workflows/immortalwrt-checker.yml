@@ -69,19 +69,6 @@ jobs:
           echo "Updated REPO_BRANCH in $file to ${{ env.latest_version }}."
         done
 
-    - name: Format files to update
-      if: env.needs_update == 'true'
-      run: |
-        IFS=' ' read -r -a files <<< "${{ env.files_to_update }}"
-        formatted_files=""
-        for file in "${files[@]}"; do
-        formatted_files+="- $(basename "$file")\n"
-        done
-        formatted_files=${formatted_files%\\n}
-        printf "files_formatted=%s\n" "$formatted_files" >> $GITHUB_ENV
-        echo "Formatted files list:"
-        echo -e "$formatted_files"
-
     - name: Create a pull request
       if: env.needs_update == 'true'
       uses: peter-evans/create-pull-request@v5
@@ -93,8 +80,14 @@ jobs:
         body: |
           This pull request updates the following files to the latest ImmortalWRT version (v${{ env.latest_version }}):
 
-          ${{ env.files_formatted }}
+          ${{ env.files_to_update }}
 
           Changes:
           - Updated `REPO_BRANCH:` to `v${{ env.latest_version }}`.
         labels: bump, immortalwrt, v${{ env.latest_version }}
+
+    - name: Delete workflow runs
+      uses: Mattraks/delete-workflow-runs@v2.0.6
+      with:
+        retain_days: 0
+        keep_minimum_runs: 3
