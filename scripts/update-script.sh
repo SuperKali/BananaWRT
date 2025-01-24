@@ -1,6 +1,6 @@
 #!/bin/sh
 
-VERSION=24.10.0-rc3
+VERSION=24.10.0-rc4
 
 echo "Ensure all required files are present in the /tmp directory:"
 echo " - immortalwrt-${VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-preloader.bin"
