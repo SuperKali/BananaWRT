@@ -44,8 +44,8 @@ version_greater() {
 }
 
 check_and_update_compat_version() {
-  REQUIRED_VERSION="$1"
-  CURRENT_VERSION=$(uci get system.@system[0].compat_version 2>/dev/null || echo "0.0")
+  REQUIRED_VERSION=24.10.0-rc4
+  CURRENT_VERSION=24.10.0-rc4
 
   if version_greater "$REQUIRED_VERSION" "$CURRENT_VERSION"; then
     log_info "Updating compat_version from $CURRENT_VERSION to $REQUIRED_VERSION..."
@@ -105,7 +105,7 @@ SYSUPGRADE_LOG=$(sysupgrade -T "$SYSUPGRADE_IMG" 2>&1)
 echo "$SYSUPGRADE_LOG"
 
 if echo "$SYSUPGRADE_LOG" | grep -q "The device is supported, but the config is incompatible"; then
-  REQUIRED_VERSION=$(echo "$SYSUPGRADE_LOG" | grep "incompatible" | awk -F'->' '{print $2}' | awk -F')' '{print $1}' | tr -d '[:space:]')
+  REQUIRED_VERSION=24.10.0-rc4
   if [ -n "$REQUIRED_VERSION" ]; then
     log_info "Detected required compat_version: $REQUIRED_VERSION"
     check_and_update_compat_version "$REQUIRED_VERSION"
