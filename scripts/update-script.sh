@@ -1,6 +1,6 @@
 #!/bin/sh
 
-VERSION=24.10.0-rc4
+VERSION=24.10.0
 EMMC_PRELOADER="/tmp/immortalwrt-${VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-preloader.bin"
 EMMC_BL31_UBOOT="/tmp/immortalwrt-${VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-bl31-uboot.fip"
 EMMC_INITRAMFS="/tmp/immortalwrt-${VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-initramfs-recovery.itb"
