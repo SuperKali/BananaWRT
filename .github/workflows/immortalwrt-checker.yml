@@ -99,7 +99,7 @@ jobs:
 
     - name: Create a pull request
       if: env.repo_branch_needs_update == 'true' || env.config_repo_needs_update == 'true'
-      uses: peter-evans/create-pull-request@v5
+      uses: peter-evans/create-pull-request@v7
       with:
         token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         branch: bump-immortalwrt-${{ env.latest_version }}
