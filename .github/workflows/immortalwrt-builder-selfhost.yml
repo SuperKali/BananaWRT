@@ -59,7 +59,7 @@ jobs:
 
     steps:
     - name: Checkout Source Code
-      uses: actions/checkout@v4.2.2
+      uses: actions/checkout@v4
 
     - name: Set Up Build Environment
       env:
