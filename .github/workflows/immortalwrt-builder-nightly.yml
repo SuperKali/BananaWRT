@@ -119,14 +119,14 @@ jobs:
 
     - name: Upload Binary Files
       if: env.UPLOAD_BIN_DIR == 'true'
-      uses: actions/upload-artifact@v4.6.0
+      uses: actions/upload-artifact@v4.6.1
       with:
         name: BananaWRT_bin${{ env.FILE_DATE }}
         path: ${{ runner.workspace }}/immortalwrt/bin
 
     - name: Upload Custom Packages
       if: env.UPLOAD_PACKAGE_DIR == 'true'
-      uses: actions/upload-artifact@v4.6.0
+      uses: actions/upload-artifact@v4.6.1
       with:
         name: BananaWRT_packages${{ env.FILE_DATE }}
         path: ${{ runner.workspace }}/immortalwrt/bin/packages/*/additional_pack/*.ipk
@@ -139,7 +139,7 @@ jobs:
 
     - name: Upload Firmware Files
       if: env.UPLOAD_FIRMWARE == 'true'
-      uses: actions/upload-artifact@v4.6.0
+      uses: actions/upload-artifact@v4.6.1
       with:
         name: BananaWRT_firmware${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
