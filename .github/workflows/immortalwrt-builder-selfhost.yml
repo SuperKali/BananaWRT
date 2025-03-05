@@ -62,7 +62,7 @@ jobs:
       REPO_BRANCH: ${{ format('v{0}', github.event.inputs.version_system || '24.10.0') }}
       VERSION_DOWNLOAD: ${{ github.event.inputs.version_system || '24.10.0' }}
       CONFIG_FILE: config/${{ github.event.inputs.release_type }}/.config
-      BUILD_DIR: ${{ runner.workspace }}/${{ matrix.target }}
+      BUILD_DIR: ${{ github.workspace }}/${{ matrix.target }}
 
     steps:
     - name: Checkout Source Code
@@ -87,7 +87,7 @@ jobs:
         chmod 600 ~/.netrc
 
     - name: Clone Repository
-      working-directory: ${{ runner.workspace }}
+      working-directory: ${{ github.workspace }}
       run: |
         git clone "$REPO_URL" -b "$REPO_BRANCH" "${{ matrix.target }}"
 
