@@ -33,18 +33,15 @@ on:
         options:
           - x64
           - arm64
-        default: x64 
+        default: x64
       version_system:
-        description: 'Write the version of ImmortalWRT to use'
+        description: 'Version to build (e.g., 24.10.0)'
         type: string
-        required: true
+        required: false
         default: '24.10.0'
 
 env:
-  REPO_URL: https://github.com/immortalwrt/immortalwrt
-  REPO_BRANCH: ${{ github.event.inputs.version_system }}
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: config/${{ github.event.inputs.release_type }}/.config
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
   UPLOAD_BIN_DIR: false
@@ -55,7 +52,17 @@ env:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        target: [immortalwrt, openwrt]
     runs-on: [self-hosted, "${{ github.event.inputs.architecture }}"]
+
+    env:
+      REPO_URL: ${{ matrix.target == 'immortalwrt' && 'https://github.com/immortalwrt/immortalwrt' || 'https://github.com/openwrt/openwrt' }}
+      REPO_BRANCH: ${{ format('v{0}', github.event.inputs.version_system || '24.10.0') }}
+      VERSION_DOWNLOAD: ${{ github.event.inputs.version_system || '24.10.0' }}
+      CONFIG_FILE: config/${{ github.event.inputs.release_type }}/.config
+      BUILD_DIR: ${{ runner.workspace }}/${{ matrix.target }}
 
     steps:
     - name: Checkout Source Code
@@ -66,7 +73,7 @@ jobs:
         DEBIAN_FRONTEND: noninteractive
       run: |
         /bin/bash .github/scripts/setup-env.sh setup
-        
+
     - name: Set timezone on the host
       run: sudo timedatectl set-timezone "$TZ" || echo "Failed to set timezone, proceeding anyway."
 
@@ -79,60 +86,64 @@ jobs:
         echo "machine github.com login ${{ secrets.PERSONAL_ACCESS_TOKEN }}" > ~/.netrc
         chmod 600 ~/.netrc
 
-    - name: Clone ImmortalWRT Repository
+    - name: Clone Repository
       working-directory: ${{ runner.workspace }}
       run: |
-        git clone $REPO_URL -b v"$REPO_BRANCH" immortalwrt
+        git clone "$REPO_URL" -b "$REPO_BRANCH" "${{ matrix.target }}"
 
     - name: Apply Custom Feeds Configuration
       run: |
-        [ -e ${{ env.FEEDS_CONF }} ] && mv ${{ env.FEEDS_CONF }} ${{ runner.workspace }}/immortalwrt/feeds.conf.default
+        [ -e ${{ env.FEEDS_CONF }} ] && mv ${{ env.FEEDS_CONF }} "$BUILD_DIR/feeds.conf.default"
         chmod +x ${{ env.DIY_P1_SH }}
-        cd ${{ runner.workspace }}/immortalwrt
-        $GITHUB_WORKSPACE/${{ env.DIY_P1_SH }}
+        cd "$BUILD_DIR"
+        "$GITHUB_WORKSPACE/${{ env.DIY_P1_SH }}"
 
     - name: Add Custom DTS Files
       run: |
-        cp -r dts/${{ github.event.inputs.release_type }}/* ${{ runner.workspace }}/immortalwrt/target/linux/mediatek/dts/
+        cp -r dts/${{ github.event.inputs.release_type }}/* "$BUILD_DIR/target/linux/mediatek/dts/"
 
     - name: Update and Install Package Feeds
-      working-directory: ${{ runner.workspace }}/immortalwrt
+      working-directory: ${{ env.BUILD_DIR }}
       run: |
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
     - name: Apply Custom Configuration
       run: |
-        [ -e files ] && mv files ${{ runner.workspace }}/immortalwrt/files
-        [ -e ${{ env.CONFIG_FILE }} ] && mv ${{ env.CONFIG_FILE }} ${{ runner.workspace }}/immortalwrt/.config
+        [ -e files ] && mv files "$BUILD_DIR/files"
+        [ -e ${{ env.CONFIG_FILE }} ] && mv ${{ env.CONFIG_FILE }} "$BUILD_DIR/.config"
         chmod +x ${{ env.DIY_P2_SH }}
-        cd ${{ runner.workspace }}/immortalwrt
-        $GITHUB_WORKSPACE/${{ env.DIY_P2_SH }}
+        cd "$BUILD_DIR"
+        "$GITHUB_WORKSPACE/${{ env.DIY_P2_SH }}"
         ./scripts/feeds install -p additional_pack -a
 
     - name: Diffconfig with current configuration
-      working-directory: ${{ runner.workspace }}/immortalwrt
+      working-directory: ${{ env.BUILD_DIR }}
       run: |
         ./scripts/diffconfig.sh > diffconfig
-        curl https://downloads.immortalwrt.org/releases/$REPO_BRANCH/targets/mediatek/filogic/config.buildinfo
+        CONFIG_URL=$([ "${{ matrix.target }}" = "immortalwrt" ] && 
+          echo "https://downloads.immortalwrt.org/releases/$VERSION_DOWNLOAD/targets/mediatek/filogic/config.buildinfo" ||
+          echo "https://downloads.openwrt.org/releases/$REPO_BRANCH/targets/mediatek/filogic/config.buildinfo")
+        curl -L "$CONFIG_URL" -o config.buildinfo
         cat diffconfig >> config.buildinfo
         mv config.buildinfo .config
-        [ -n "$REPO_BRANCH" ] && sed -i \
-          -e 's|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO="https://downloads.immortalwrt.org/releases/'"$REPO_BRANCH"'"|g' \
-          .config
+        
+        REPO_BASE_URL=$([ "${{ matrix.target }}" = "immortalwrt" ] &&
+          echo "https://downloads.immortalwrt.org/releases/$VERSION_DOWNLOAD" ||
+          echo "https://downloads.openwrt.org/releases/$REPO_BRANCH")
+        sed -i "s|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO=\"$REPO_BASE_URL\"|g" .config
 
     - name: Download Required Packages
-      working-directory: ${{ runner.workspace }}/immortalwrt
+      working-directory: ${{ env.BUILD_DIR }}
       run: |
         make defconfig
         make download -j$(nproc)
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
-        
-    - name: Build Firmware
-      working-directory: ${{ runner.workspace }}/immortalwrt
-      run: |
 
+    - name: Build Firmware
+      working-directory: ${{ env.BUILD_DIR }}
+      run: |
         make -j$(nproc) || make -j1 V=s
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         echo "FILE_DATE=$(date +'%Y%m%d%H%M')" >> $GITHUB_ENV
@@ -142,78 +153,27 @@ jobs:
 
     - name: Upload Binary Files
       if: env.UPLOAD_BIN_DIR == 'true'
-      uses: actions/upload-artifact@v4.6.1
+      uses: actions/upload-artifact@v4
       with:
-        name: BananaWRT_bin${{ env.FILE_DATE }}
-        path: ${{ runner.workspace }}/immortalwrt/bin
-
-    - name: Upload Custom Packages
-      if: env.UPLOAD_PACKAGE_DIR == 'true'
-      uses: actions/upload-artifact@v4.6.1
-      with:
-        name: BananaWRT_packages${{ env.FILE_DATE }}
-        path: ${{ runner.workspace }}/immortalwrt/bin/packages/*/additional_pack/*.ipk
+        name: ${{ matrix.target }}_bin_${{ env.FILE_DATE }}
+        path: ${{ env.BUILD_DIR }}/bin
 
     - name: Prepare Firmware for Upload
       run: |
-        cd ${{ runner.workspace }}/immortalwrt/bin/targets/*/*
+        cd ${{ env.BUILD_DIR }}/bin/targets/*/*
         rm -rf packages
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
 
-    - name: Upload Firmware Files
-      if: env.UPLOAD_FIRMWARE == 'true'
-      uses: actions/upload-artifact@v4.6.1
-      with:
-        name: BananaWRT_firmware${{ env.FILE_DATE }}
-        path: ${{ env.FIRMWARE }}
-
-    - name: Create Release Tag
-      if: env.UPLOAD_RELEASE == 'true'
-      run: |
-        release_date=$(date +'%Y.%m.%d-%H%M')
-        kernel_version=$(find ${{ runner.workspace }}/immortalwrt/build_dir/target-*/linux-*/ -type d -regex '.*/linux-[0-9]+\.[0-9]+.*' | head -n 1 | sed -E 's|.*/linux-||')
-        target_devices=$(grep '^CONFIG_TARGET.*DEVICE.*=y' ${{ runner.workspace }}/immortalwrt/.config | sed -r 's/.*DEVICE_(.*)=y/\1/')
-        
-        if [ "${{ github.event.inputs.release_type }}" = "stable" ]; then
-          release_type='Stable'
-        elif [ "${{ github.event.inputs.release_type }}" = "nightly" ]; then
-          release_type='Nightly'
-        fi
-
-        sed -e "s|{{BANANAWRT_KERNEL}}|${kernel_version}|g" \
-            -e "s|{{RELEASE_TYPE}}|${release_type}|g" \
-            -e "s|{{BANANAWRT_VERSION}}|${REPO_BRANCH}|g" \
-            -e "s|{{RELEASE_DATE}}|$(date '+%Y-%m-%d %H:%M:%S')|g" \
-            -e "s|{{TARGET_DEVICES}}|${target_devices}|g" \
-            templates/release-notes-template.md > release.txt
-        
-        echo "release_tag=${release_date}" >> $GITHUB_ENV
-  
     - name: Publish Firmware Release
       if: env.UPLOAD_RELEASE == 'true'
-      uses: softprops/action-gh-release@v2.2.1
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ env.release_tag }}
-        body_path: release.txt
+        tag_name: ${{ env.FILE_DATE }}_${{ matrix.target }}
+        body: "Build ${{ matrix.target }} - ${{ github.event.inputs.release_type }} (${{ env.VERSION_DOWNLOAD }})"
         files: ${{ env.FIRMWARE }}/*
-
-    - name: Remove old Releases
-      uses: dev-drprasad/delete-older-releases@v0.3.4
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      with:
-        keep_latest: 7
-        delete_tags: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  
-    - name: Delete workflow runs
-      uses: Mattraks/delete-workflow-runs@v2.0.6
-      with:
-        retain_days: 0
-        keep_minimum_runs: 7
 
     - name: Cleanup Workspace
       if: always()
       run: |
         sudo rm -rf ~/.netrc
-        sudo rm -rf "${{ runner.workspace }}/immortalwrt"
+        sudo rm -rf "$BUILD_DIR"
