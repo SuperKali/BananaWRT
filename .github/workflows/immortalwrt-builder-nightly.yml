@@ -20,7 +20,7 @@ on:
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
   BANANAWRT_RELEASE: nightly
-  REPO_BRANCH: 24.10.0
+  REPO_BRANCH: master
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: config/nightly/.config
   DIY_P1_SH: diy-part1.sh
@@ -91,11 +91,11 @@ jobs:
       working-directory: ${{ runner.workspace }}/immortalwrt
       run: |
         ./scripts/diffconfig.sh > diffconfig
-        curl https://downloads.immortalwrt.org/releases/$REPO_BRANCH/targets/mediatek/filogic/config.buildinfo
+        curl https://downloads.immortalwrt.org/snapshots/targets/mediatek/filogic/config.buildinfo
         cat diffconfig >> config.buildinfo
         mv config.buildinfo .config
         [ -n "$REPO_BRANCH" ] && sed -i \
-          -e 's|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO="https://downloads.immortalwrt.org/releases/'"$REPO_BRANCH"'"|g' \
+          -e 's|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO="https://downloads.immortalwrt.org/snapshots/"|g' \
           .config
 
     - name: Download Required Packages
