@@ -59,7 +59,7 @@ jobs:
     - name: Clone ImmortalWRT Repository
       working-directory: ${{ runner.workspace }}
       run: |
-        git clone $REPO_URL -b v"$REPO_BRANCH" immortalwrt
+        git clone $REPO_URL -b "$REPO_BRANCH" immortalwrt
 
     - name: Apply Custom Feeds Configuration
       run: |
