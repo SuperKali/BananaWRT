@@ -15,4 +15,8 @@
 #sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
 
 # Add a feed source (Closed source)
-echo 'src-git additional_pack https://github.com/SuperKali/openwrt-packages' >> feeds.conf.default
+if [ "$BANANAWRT_RELEASE" == "nightly" ] && [ "$REPO_BRANCH" == "master" ]; then
+  echo 'src-git additional_pack https://github.com/SuperKali/openwrt-packages;apk' >> feeds.conf.default
+else
+  echo 'src-git additional_pack https://github.com/SuperKali/openwrt-packages' >> feeds.conf.default
+fi

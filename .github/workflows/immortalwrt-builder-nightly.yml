@@ -66,7 +66,7 @@ jobs:
         [ -e ${{ env.FEEDS_CONF }} ] && mv ${{ env.FEEDS_CONF }} ${{ runner.workspace }}/immortalwrt/feeds.conf.default
         chmod +x ${{ env.DIY_P1_SH }}
         cd ${{ runner.workspace }}/immortalwrt
-        $GITHUB_WORKSPACE/${{ env.DIY_P1_SH }}
+        BANANAWRT_RELEASE=${{ env.BANANAWRT_RELEASE }} REPO_BRANCH=${{ env.REPO_BRANCH }} $GITHUB_WORKSPACE/${{ env.DIY_P1_SH }}
 
     - name: Add Custom DTS Files
       run: |
@@ -106,7 +106,6 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
             
-
     - name: Build Firmware
       working-directory: ${{ runner.workspace }}/immortalwrt
       run: |
