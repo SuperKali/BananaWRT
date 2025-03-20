@@ -150,10 +150,15 @@ jobs:
         kernel_version=$(find ${{ runner.workspace }}/immortalwrt/build_dir/target-*/linux-*/ -type d -regex '.*/linux-[0-9]+\.[0-9]+.*' | head -n 1 | sed -E 's|.*/linux-||')
         target_devices=$(grep '^CONFIG_TARGET.*DEVICE.*=y' ${{ runner.workspace }}/immortalwrt/.config | sed -r 's/.*DEVICE_(.*)=y/\1/')
         release_type='Nightly'
+        bananawrt_version="${REPO_BRANCH}"
+
+        if [ "${bananawrt_version}" = "master" ]; then
+            bananawrt_version='SNAPSHOT'
+        fi
 
         sed -e "s|{{BANANAWRT_KERNEL}}|${kernel_version}|g" \
             -e "s|{{RELEASE_TYPE}}|${release_type}|g" \
-            -e "s|{{BANANAWRT_VERSION}}|${REPO_BRANCH}|g" \
+            -e "s|{{BANANAWRT_VERSION}}|${bananawrt_version}|g" \
             -e "s|{{RELEASE_DATE}}|$(date '+%Y-%m-%d %H:%M:%S')|g" \
             -e "s|{{TARGET_DEVICES}}|${target_devices}|g" \
             templates/release-notes-template.md > release.txt
