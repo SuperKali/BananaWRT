@@ -45,7 +45,7 @@ jobs:
       
       - name: Clone additional_pack repo
         run: |
-          git clone https://github.com/SuperKali/additional_pack.git ../additional_pack
+          git clone https://github.com/SuperKali/openwrt-packages.git ../additional_pack
       
       - name: Extract logs from additional_pack
         id: additional_logs
