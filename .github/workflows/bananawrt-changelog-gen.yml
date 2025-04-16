@@ -26,130 +26,132 @@ jobs:
       - name: Set latest changelog date
         id: changelog_date
         run: |
-          if [ -f CHANGELOG.md ]; then
-            DATE=$(grep -m1 '^## \[' CHANGELOG.md | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' || echo "1970-01-01")
-          else
-            DATE="1970-01-01"
-          fi
+          DATE=$(grep -m1 '^## \[' CHANGELOG.md | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' || echo "1970-01-01")
           echo "last_date=$DATE" >> $GITHUB_OUTPUT
       
       - name: Clone additional_pack repo
         run: |
           git clone https://github.com/SuperKali/openwrt-packages.git ../additional_pack
       
-      - name: Extract logs
-        id: extract_logs
+      - name: Extract logs from additional_pack
+        id: additional_logs
         run: |
           cd ../additional_pack
           git log --since="${{ steps.changelog_date.outputs.last_date }}" --pretty=format:"%s|@%an" > ../additional_raw.txt
-          cd $GITHUB_WORKSPACE
-          
+          if [ -s "../additional_raw.txt" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Extract logs from BananaWRT
+        id: core_logs
+        run: |
           git log --since="${{ steps.changelog_date.outputs.last_date }}" --pretty=format:"%s|@%an" > core_raw.txt
-          
-          if [ ! -s "../additional_raw.txt" ] && [ ! -s "core_raw.txt" ]; then
+          if [ -s "core_raw.txt" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Skip if no changes
+        id: check_changes
+        run: |
+          if [[ "${{ steps.additional_logs.outputs.has_changes }}" == "false" && "${{ steps.core_logs.outputs.has_changes }}" == "false" ]]; then
             echo "No changes found since last changelog update. Skipping."
             echo "skip_update=true" >> $GITHUB_OUTPUT
           else
             echo "skip_update=false" >> $GITHUB_OUTPUT
           fi
       
-      - name: Parse commits and rebuild changelog
-        if: steps.extract_logs.outputs.skip_update != 'true'
+      - name: Create new changelog
+        if: steps.check_changes.outputs.skip_update != 'true'
         run: |
           mkdir -p temp
-          
-          parse_line() {
-            MSG="$1"
-            AUTHOR="$2"
-            if echo "$MSG" | grep -iqE '\b(fix|bug|hotfix)\b'; then ICON="🐛"
-            elif echo "$MSG" | grep -iqE '\b(add|initial|support|release)\b'; then ICON="🚀"
-            elif echo "$MSG" | grep -iqE '\b(update|bump|upgrade|change|refactor|align|improve)\b'; then ICON="🛠️"
-            elif echo "$MSG" | grep -iqE '\b(remove|delete|drop)\b'; then ICON="🗑️"
-            elif echo "$MSG" | grep -iqE '\b(security|secure|patch)\b'; then ICON="🔒"
-            elif echo "$MSG" | grep -iqE '\b(doc|docs|documentation)\b'; then ICON="📝"
-            elif echo "$MSG" | grep -iqE '\b(issue|template)\b'; then ICON="🐞"
-            elif echo "$MSG" | grep -iqE '\b(fan|cooling)\b'; then ICON="🌬️"
-            elif echo "$MSG" | grep -iqE '\b(package|pkg)\b'; then ICON="📦"
-            elif echo "$MSG" | grep -iqE '\b(info|log)\b'; then ICON="ℹ️"
-            elif echo "$MSG" | grep -iqE '\b(time|timer|sleep)\b'; then ICON="⏱️"
-            elif echo "$MSG" | grep -iqE '\b(script|sh)\b'; then ICON="📜"
-            elif echo "$MSG" | grep -iqE '\b(link|url)\b'; then ICON="🔗"
-            elif echo "$MSG" | grep -iqE '\b(config|conf)\b'; then ICON="⚙️"
-            elif echo "$MSG" | grep -iqE '\b(clean|cleanup)\b'; then ICON="🧹"
-            elif echo "$MSG" | grep -iqE '\b(code|conduct)\b'; then ICON="📄"
-            else ICON="⚫"; fi
-            echo "- $ICON $MSG by $AUTHOR"
-          }
-          
-          > temp/additional_entries.txt
-          if [ -s "../additional_raw.txt" ]; then
-            while IFS='|' read -r msg author; do
-              parse_line "$msg" "$author" >> temp/additional_entries.txt
-            done < ../additional_raw.txt
-          else
-            echo "- No changes in this period" >> temp/additional_entries.txt
-          fi
-          
-          > temp/core_entries.txt
-          if [ -s "core_raw.txt" ]; then
-            while IFS='|' read -r msg author; do
-              parse_line "$msg" "$author" >> temp/core_entries.txt
-            done < core_raw.txt
-          else
-            echo "- No changes in this period" >> temp/core_entries.txt
-          fi
-          
-          if [ -f CHANGELOG.md ]; then
-            awk '
-              BEGIN { entry_started = 0; current = 0; }
-              /^## \[/ { 
-                current++; 
-                if (current > 1 && current <= 10) {
-                  entry_started = 1;
-                  print $0;
-                  next;
-                } else if (current > 10) {
-                  exit;
-                }
-              }
-              /^🛠️/ { exit; }
-              entry_started == 1 { print; }
-            ' CHANGELOG.md > temp/old_entries.txt
-          else
-            touch temp/old_entries.txt
-          fi
           
           TODAY=$(date +'%Y-%m-%d')
           MONTH=$(date +'%B')
           DAY=$(date +'%d')
           YEAR=$(date +'%Y')
           
-          echo "# 📦 CHANGELOG" > temp/header.txt
-          echo "" >> temp/header.txt
-          echo "All notable changes to **BananaWRT** will be documented in this file." >> temp/header.txt
-          echo "" >> temp/header.txt
-          echo "---" >> temp/header.txt
-          echo "" >> temp/header.txt
+          process_commits() {
+            input_file=$1
+            if [ ! -s "$input_file" ]; then
+              echo "- No changes in this period"
+              return
+            fi
+            
+            while IFS='|' read -r msg author; do
+              if echo "$msg" | grep -iqE '\b(fix|bug|hotfix)\b'; then ICON="🐛"
+              elif echo "$msg" | grep -iqE '\b(add|initial|support|release)\b'; then ICON="🚀"
+              elif echo "$msg" | grep -iqE '\b(update|bump|upgrade|change|refactor|align|improve)\b'; then ICON="🛠️"
+              elif echo "$msg" | grep -iqE '\b(remove|delete|drop)\b'; then ICON="🗑️"
+              elif echo "$msg" | grep -iqE '\b(security|secure|patch)\b'; then ICON="🔒"
+              elif echo "$msg" | grep -iqE '\b(doc|docs|documentation)\b'; then ICON="📝"
+              elif echo "$msg" | grep -iqE '\b(issue|template)\b'; then ICON="🐞"
+              elif echo "$msg" | grep -iqE '\b(fan|cooling)\b'; then ICON="🌬️"
+              elif echo "$msg" | grep -iqE '\b(package|pkg)\b'; then ICON="📦"
+              elif echo "$msg" | grep -iqE '\b(info|log)\b'; then ICON="ℹ️"
+              elif echo "$msg" | grep -iqE '\b(time|timer|sleep)\b'; then ICON="⏱️"
+              elif echo "$msg" | grep -iqE '\b(script|sh)\b'; then ICON="📜"
+              elif echo "$msg" | grep -iqE '\b(link|url)\b'; then ICON="🔗"
+              elif echo "$msg" | grep -iqE '\b(config|conf)\b'; then ICON="⚙️"
+              elif echo "$msg" | grep -iqE '\b(clean|cleanup)\b'; then ICON="🧹"
+              elif echo "$msg" | grep -iqE '\b(code|conduct)\b'; then ICON="📄"
+              else ICON="⚫"; fi
+              
+              echo "- $ICON $msg by $author"
+            done < "$input_file"
+          }
           
-          echo "## [$TODAY]" > temp/new_entry.txt
-          echo "" >> temp/new_entry.txt
-          echo "### 🧩 Additional Packages" >> temp/new_entry.txt
-          cat temp/additional_entries.txt >> temp/new_entry.txt
-          echo "" >> temp/new_entry.txt
-          echo "### 🍌 BananaWRT Core" >> temp/new_entry.txt
-          cat temp/core_entries.txt >> temp/new_entry.txt
-          echo "" >> temp/new_entry.txt
-          echo "---" >> temp/new_entry.txt
-          
-          echo "🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)" > temp/footer.txt
-          echo "📅 Release date: **$MONTH $DAY, $YEAR**" >> temp/footer.txt
-          
-          cat temp/header.txt > CHANGELOG.md
-          cat temp/new_entry.txt >> CHANGELOG.md
-          if [ -s temp/old_entries.txt ]; then
-            cat temp/old_entries.txt >> CHANGELOG.md
+          if [ -f CHANGELOG.md ]; then
+            awk '
+              BEGIN { count = 0; printing = 0; }
+              /^## \[/ { 
+                count++; 
+                if (count > 1 && count <= 10) { printing = 1; } 
+                else { printing = 0; }
+              }
+              /^🛠️/ { printing = 0; }
+              printing { print; }
+            ' CHANGELOG.md > temp/old_entries.txt
+          else
+            touch temp/old_entries.txt
           fi
-          cat temp/footer.txt >> CHANGELOG.md
+          
+          {
+            # Header
+            echo "# 📦 CHANGELOG"
+            echo ""
+            echo "All notable changes to **BananaWRT** will be documented in this file."
+            echo ""
+            echo "---"
+            echo ""
+            
+            # New entry
+            echo "## [$TODAY]"
+            echo ""
+            echo "### 🧩 Additional Packages"
+            process_commits "../additional_raw.txt"
+            echo ""
+            echo "### 🍌 BananaWRT Core"
+            process_commits "core_raw.txt"
+            echo ""
+            echo "---"
+            echo ""
+            
+            if [ -s temp/old_entries.txt ]; then
+              cat temp/old_entries.txt
+            fi
+            
+            echo -e "🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)\n"
+            echo -e "📅 Release date: **$MONTH $DAY, $YEAR**"
+          } > CHANGELOG.md
+      
+      - name: Cleanup before commit
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          rm -rf temp ../additional_pack additional_raw.txt core_raw.txt
       
       - name: Get current date
         id: date
@@ -158,7 +160,7 @@ jobs:
           echo "today=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
       
       - name: Create Pull Request
-        if: steps.extract_logs.outputs.skip_update != 'true'
+        if: steps.check_changes.outputs.skip_update != 'true'
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
@@ -178,10 +180,10 @@ jobs:
           delete-branch: true
           labels: documentation, automation, changelog
 
-      - name: Cleanup
+      - name: Cleanup Workspace
         if: always()
         run: |
-            rm -rf ~/.netrc temp ../additional_pack additional_raw.txt core_raw.txt
+            sudo rm -rf ~/.netrc
 
       - name: Delete workflow runs
         uses: Mattraks/delete-workflow-runs@v2.0.6
