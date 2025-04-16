@@ -1,0 +1,210 @@
+name: Auto-generate CHANGELOG
+on:
+  workflow_dispatch:
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout BananaWRT
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Authenticate GitHub
+        env:
+            GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+            git config --global user.name "GitHub Actions"
+            git config --global user.email "actions@github.com"
+            echo "machine github.com login ${{ secrets.PERSONAL_ACCESS_TOKEN }}" > ~/.netrc
+            chmod 600 ~/.netrc
+    
+      - name: Initialize CHANGELOG if missing
+        run: |
+          if [ ! -f CHANGELOG.md ]; then
+            echo "# 📦 CHANGELOG" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "All notable changes to **BananaWRT** will be documented in this file." >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "---" >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "## [$(date +'%Y-%m-%d')]" >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "---" >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)" >> CHANGELOG.md
+            echo "📅 Release date: **$(date +'%Y-%m-%d')**" >> CHANGELOG.md
+          fi
+      
+      - name: Set latest changelog date
+        id: changelog_date
+        run: |
+          DATE=$(grep -m1 '^## \[' CHANGELOG.md | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' || echo "1970-01-01")
+          echo "last_date=$DATE" >> $GITHUB_OUTPUT
+      
+      - name: Clone additional_pack repo
+        run: |
+          git clone https://github.com/SuperKali/additional_pack.git ../additional_pack
+      
+      - name: Extract logs from additional_pack
+        id: additional_logs
+        run: |
+          cd ../additional_pack
+          git log --since="${{ steps.changelog_date.outputs.last_date }}" --pretty=format:"%s|@%an" > ../additional_raw.txt
+          if [ -s "../additional_raw.txt" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Extract logs from BananaWRT
+        id: core_logs
+        run: |
+          git log --since="${{ steps.changelog_date.outputs.last_date }}" --pretty=format:"%s|@%an" > core_raw.txt
+          if [ -s "core_raw.txt" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Skip if no changes
+        id: check_changes
+        run: |
+          if [[ "${{ steps.additional_logs.outputs.has_changes }}" == "false" && "${{ steps.core_logs.outputs.has_changes }}" == "false" ]]; then
+            echo "No changes found since last changelog update. Skipping."
+            echo "skip_update=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip_update=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Parse and format changes
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          parse_line() {
+            MSG="$1"
+            AUTHOR="$2"
+            if echo "$MSG" | grep -iqE '\b(fix|bug|hotfix)\b'; then ICON="🐛"
+            elif echo "$MSG" | grep -iqE '\b(add|initial|support|release)\b'; then ICON="🚀"
+            elif echo "$MSG" | grep -iqE '\b(update|bump|upgrade|change|refactor|align|improve)\b'; then ICON="🛠️"
+            elif echo "$MSG" | grep -iqE '\b(remove|delete|drop)\b'; then ICON="🗑️"
+            elif echo "$MSG" | grep -iqE '\b(security|secure|patch)\b'; then ICON="🔒"
+            elif echo "$MSG" | grep -iqE '\b(doc|docs|documentation)\b'; then ICON="📝"
+            elif echo "$MSG" | grep -iqE '\b(issue|template)\b'; then ICON="🐞"
+            elif echo "$MSG" | grep -iqE '\b(fan|cooling)\b'; then ICON="🌬️"
+            elif echo "$MSG" | grep -iqE '\b(package|pkg)\b'; then ICON="📦"
+            elif echo "$MSG" | grep -iqE '\b(info|log)\b'; then ICON="ℹ️"
+            elif echo "$MSG" | grep -iqE '\b(time|timer|sleep)\b'; then ICON="⏱️"
+            elif echo "$MSG" | grep -iqE '\b(script|sh)\b'; then ICON="📜"
+            elif echo "$MSG" | grep -iqE '\b(link|url)\b'; then ICON="🔗"
+            elif echo "$MSG" | grep -iqE '\b(config|conf)\b'; then ICON="⚙️"
+            elif echo "$MSG" | grep -iqE '\b(clean|cleanup)\b'; then ICON="🧹"
+            elif echo "$MSG" | grep -iqE '\b(code|conduct)\b'; then ICON="📄"
+            else ICON="⚫"; fi
+            echo "$ICON $MSG by $AUTHOR"
+          }
+          
+          if [[ "${{ steps.additional_logs.outputs.has_changes }}" == "true" ]]; then
+            echo "" > additional_changes.txt
+            while IFS='|' read -r msg author; do
+              parse_line "$msg" "$author" >> additional_changes.txt
+            done < ../additional_raw.txt
+            sed -i '/^$/d' additional_changes.txt
+          else
+            echo "- No changes in this period" > additional_changes.txt
+          fi
+          
+          if [[ "${{ steps.core_logs.outputs.has_changes }}" == "true" ]]; then
+            echo "" > core_changes.txt
+            while IFS='|' read -r msg author; do
+              parse_line "$msg" "$author" >> core_changes.txt
+            done < core_raw.txt
+            sed -i '/^$/d' core_changes.txt
+          else
+            echo "- No changes in this period" > core_changes.txt
+          fi
+      
+      - name: Format new changelog
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          TODAY=$(date +'%Y-%m-%d')
+          echo "$TODAY" > .today
+          echo "## [$TODAY]" > temp_changelog.md
+          echo "" >> temp_changelog.md
+          
+          echo "### 🧩 Additional Packages" >> temp_changelog.md
+          echo "" >> temp_changelog.md
+          cat additional_changes.txt | while read line; do
+            echo "- $line" >> temp_changelog.md
+          done
+          echo "" >> temp_changelog.md
+          
+          echo "### 🍌 BananaWRT Core" >> temp_changelog.md
+          echo "" >> temp_changelog.md
+          cat core_changes.txt | while read line; do
+            echo "- $line" >> temp_changelog.md
+          done
+          echo "" >> temp_changelog.md
+          echo "---" >> temp_changelog.md
+          echo "" >> temp_changelog.md
+      
+      - name: Update release date footer
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          TODAY=$(date +'%Y-%m-%d')
+          MONTH=$(date +'%B')
+          if grep -q "^📅 Release date:" CHANGELOG.md; then
+            sed -i "s/^📅 Release date: .*/📅 Release date: **$MONTH $TODAY**/" CHANGELOG.md
+          else
+            echo "" >> CHANGELOG.md
+            echo "📅 Release date: **$MONTH $TODAY**" >> CHANGELOG.md
+          fi
+      
+      - name: Prepend to CHANGELOG.md
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          head -3 CHANGELOG.md > header.md
+          echo "" >> header.md
+          echo "---" >> header.md
+          echo "" >> header.md
+          cat temp_changelog.md >> header.md
+          sed -n '/^## \[/,$p' CHANGELOG.md > rest.md
+          cat header.md rest.md > new_changelog.md
+          mv new_changelog.md CHANGELOG.md
+      
+      - name: Cleanup changelog (keep latest 10 releases)
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          awk 'BEGIN{header=""} /^## \[/{exit} {header=header $0 "\n"} END{printf "%s", header}' CHANGELOG.md > header.md
+          
+          awk 'BEGIN{save=0; content=""} 
+              /^## \[/{save=1; releases++} 
+              save==1 {content=content $0 "\n"} 
+              END{printf "%s", content}' CHANGELOG.md | 
+              awk -v RS="---\n\n" 'BEGIN{count=0}
+                  /^## \[/{count++}
+                  count <= 10 {print $0 (count<=9 ? "---\n\n" : "")}' > releases.md
+          
+          tac CHANGELOG.md | awk 'BEGIN{footer=""; found=0} 
+              found==1 {footer=$0 "\n" footer} 
+              /^🛠️/{found=1} 
+              END{printf "%s", footer}' > footer.md
+          
+          cat header.md releases.md footer.md > CHANGELOG.md
+          
+          rm -f header.md releases.md footer.md temp_changelog.md .today additional_changes.txt core_changes.txt additional_raw.txt core_raw.txt
+      
+      - name: Commit and push
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || (git commit -m "chore: update changelog [auto]" && git push)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup Workspace
+        if: always()
+        run: |
+            sudo rm -rf ~/.netrc
