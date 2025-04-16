@@ -125,50 +125,95 @@ jobs:
             echo "No changes in this period" > core_changes.txt
           fi
       
+      - name: Format new changelog
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          TODAY=$(date +'%Y-%m-%d')
+          {
+            echo "## [$TODAY]"
+            echo ""
+            echo "### 🧩 Additional Packages"
+            if [ -s additional_changes.txt ]; then
+              while read line; do
+                echo "- $line"
+              done < additional_changes.txt
+            else
+              echo "- No changes in this period"
+            fi
+            echo ""
+            echo "### 🍌 BananaWRT Core"
+            if [ -s core_changes.txt ]; then
+              while read line; do
+                echo "- $line"
+              done < core_changes.txt
+            else
+              echo "- No changes in this period"
+            fi
+            echo ""
+            echo "---"
+          } > new_changes.md
+      
+      - name: Prepare footer
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          TODAY=$(date +'%d')
+          MONTH=$(date +'%B')
+          YEAR=$(date +'%Y')
+          echo "" > footer.md
+          echo "🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)" >> footer.md
+          echo "📅 Release date: **$MONTH $TODAY, $YEAR**" >> footer.md
+      
+      - name: Prepend to CHANGELOG.md
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          mkdir -p temp_dir
+          
+          awk '/^---$/{exit} {print}' CHANGELOG.md > temp_dir/header.md
+          echo "" >> temp_dir/header.md
+          echo "---" >> temp_dir/header.md
+          echo "" >> temp_dir/header.md
+          
+          cat new_changes.md >> temp_dir/header.md
+          
+          awk '/^## \[/{flag=1} /^🛠️/{flag=0} flag {print}' CHANGELOG.md > temp_dir/versions.md
+          
+          cat temp_dir/header.md temp_dir/versions.md footer.md > CHANGELOG.md
+      
+      - name: Cleanup changelog (keep latest 10 releases)
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          mkdir -p temp_dir
+          
+          awk 'BEGIN{header=""} /^## \[/{exit} {header=header $0 "\n"} END{printf "%s", header}' CHANGELOG.md > temp_dir/header.md
+          
+          awk 'BEGIN{save=0; content=""}
+              /^## \[/{save=1}
+              /^🛠️/{save=0}
+              save==1 {content=content $0 "\n"}
+              END{printf "%s", content}' CHANGELOG.md |
+              awk -v RS="---\n\n" 'BEGIN{count=0}
+                  /^## \[/{count++}
+                  count <= 10 {print $0 (count<=9 ? "---\n\n" : "")}' > temp_dir/releases.md
+          
+          grep -A1 "^🛠️" CHANGELOG.md > temp_dir/footer.md
+          
+          cat temp_dir/header.md temp_dir/releases.md temp_dir/footer.md > CHANGELOG.md
+          
+          sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' CHANGELOG.md
+          sed -i -e :a -e '/---\n*$/{$d;N;ba' -e '}' CHANGELOG.md
+          cat -s CHANGELOG.md > temp_dir/cleaned.md
+          mv temp_dir/cleaned.md CHANGELOG.md
+      
+      - name: Remove temporary files
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          rm -rf temp_dir new_changes.md additional_changes.txt core_changes.txt additional_raw.txt core_raw.txt footer.md rest.md header.md releases.md
+      
       - name: Get current date
         id: date
         run: |
           echo "date=$(date +'%B %d, %Y')" >> $GITHUB_OUTPUT
           echo "today=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-          echo "day=$(date +'%d')" >> $GITHUB_OUTPUT
-          echo "month=$(date +'%B')" >> $GITHUB_OUTPUT
-          echo "year=$(date +'%Y')" >> $GITHUB_OUTPUT
-      
-      - name: Generate new changelog
-        if: steps.check_changes.outputs.skip_update != 'true'
-        run: |
-          {
-            echo "# 📦 CHANGELOG"
-            echo ""
-            echo "All notable changes to **BananaWRT** will be documented in this file."
-            echo ""
-            echo "---"
-            echo ""
-            echo "## [${{ steps.date.outputs.today }}]"
-            echo ""
-            echo "### 🧩 Additional Packages"
-            cat additional_changes.txt | sed 's/^/- /'
-            echo ""
-            echo "### 🍌 BananaWRT Core"
-            cat core_changes.txt | sed 's/^/- /'
-            echo ""
-            echo "---"
-          } > new_header.md
-          
-          grep -A 999999 "^## \[" CHANGELOG.md | grep -v "^## \[${{ steps.date.outputs.today }}]" | awk 'BEGIN{count=0} /^## \[/{count++} count<=9' > existing_versions.md
-          
-          {
-            echo "🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)"
-            echo "📅 Release date: **${{ steps.date.outputs.month }} ${{ steps.date.outputs.day }}, ${{ steps.date.outputs.year }}**"
-          } > footer.md
-          
-          cat new_header.md existing_versions.md footer.md > new_changelog.md
-          mv new_changelog.md CHANGELOG.md
-      
-      - name: Remove temporary files
-        if: steps.check_changes.outputs.skip_update != 'true'
-        run: |
-          rm -f additional_changes.txt core_changes.txt additional_raw.txt core_raw.txt new_header.md existing_versions.md footer.md
       
       - name: Create Pull Request
         if: steps.check_changes.outputs.skip_update != 'true'
