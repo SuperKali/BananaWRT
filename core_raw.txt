@@ -1,0 +1,10 @@
+workflow: still fixing automatic changelog|@SuperKali
+workflow: still fixing automatic changelog|@SuperKali
+workflow: changelog generator fix footer|@SuperKali
+workflow: still fixing automatic changelog generator|@SuperKali
+workflow: should be fixed the empty space on changelog|@SuperKali
+workflow: add some fixes on changelog generator|@SuperKali
+workflow: ops, missing cleanup workspace|@SuperKali
+workflow: add missing stuff on changelog generator|@SuperKali
+workflow: typo on additional_pack repository|@SuperKali
+workflow: added automatic changelog generator|@SuperKali

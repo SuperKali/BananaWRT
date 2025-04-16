@@ -1,0 +1,6 @@
+# 📦 CHANGELOG
+
+All notable changes to **BananaWRT** will be documented in this file.
+
+---
+

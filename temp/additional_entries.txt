@@ -1,0 +1,4 @@
+- ⚫ banana-utils: optimizing banana-restore process by @SuperKali
+- 🌬️ luci-app-fan: updated warn and crit values of notifications by @SuperKali
+- 🗑️ luci-app-fan: remove invalid translation by @SuperKali
+- 🛠️ feat: improve luci-app-fan UI and notifications by @SuperKali
