@@ -149,8 +149,6 @@ jobs:
             else
               echo "- No changes in this period"
             fi
-            echo ""
-            echo "---"
           } > new_changes.md
       
       - name: Prepare footer
@@ -159,55 +157,35 @@ jobs:
           TODAY=$(date +'%d')
           MONTH=$(date +'%B')
           YEAR=$(date +'%Y')
-          echo "" > footer.md
-          echo "🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)" >> footer.md
-          echo "📅 Release date: **$MONTH $TODAY, $YEAR**" >> footer.md
+          {
+            echo "🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)"
+            echo "📅 Release date: **$MONTH $TODAY, $YEAR**"
+          } > footer.md
       
-      - name: Prepend to CHANGELOG.md
+      - name: Create complete changelog
         if: steps.check_changes.outputs.skip_update != 'true'
         run: |
           mkdir -p temp_dir
           
-          awk '/^---$/{exit} {print}' CHANGELOG.md > temp_dir/header.md
-          echo "" >> temp_dir/header.md
-          echo "---" >> temp_dir/header.md
-          echo "" >> temp_dir/header.md
+          head -5 CHANGELOG.md > temp_dir/complete.md
+          echo "" >> temp_dir/complete.md
           
-          cat new_changes.md >> temp_dir/header.md
+          cat new_changes.md >> temp_dir/complete.md
+          echo "---" >> temp_dir/complete.md
+          echo "" >> temp_dir/complete.md
           
-          awk '/^## \[/{flag=1} /^🛠️/{flag=0} flag {print}' CHANGELOG.md > temp_dir/versions.md
+          awk 'BEGIN{flag=0} /^## \[/{flag=1} /^🛠️/{flag=0} flag {print}' CHANGELOG.md > temp_dir/versions.md
           
-          cat temp_dir/header.md temp_dir/versions.md footer.md > CHANGELOG.md
-      
-      - name: Cleanup changelog (keep latest 10 releases)
-        if: steps.check_changes.outputs.skip_update != 'true'
-        run: |
-          mkdir -p temp_dir
+          awk -v count=0 '/^## \[/{count++} count<=9 {print}' temp_dir/versions.md >> temp_dir/complete.md
           
-          awk 'BEGIN{header=""} /^## \[/{exit} {header=header $0 "\n"} END{printf "%s", header}' CHANGELOG.md > temp_dir/header.md
+          cat footer.md >> temp_dir/complete.md
           
-          awk 'BEGIN{save=0; content=""}
-              /^## \[/{save=1}
-              /^🛠️/{save=0}
-              save==1 {content=content $0 "\n"}
-              END{printf "%s", content}' CHANGELOG.md |
-              awk -v RS="---\n\n" 'BEGIN{count=0}
-                  /^## \[/{count++}
-                  count <= 10 {print $0 (count<=9 ? "---\n\n" : "")}' > temp_dir/releases.md
-          
-          grep -A1 "^🛠️" CHANGELOG.md > temp_dir/footer.md
-          
-          cat temp_dir/header.md temp_dir/releases.md temp_dir/footer.md > CHANGELOG.md
-          
-          sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' CHANGELOG.md
-          sed -i -e :a -e '/---\n*$/{$d;N;ba' -e '}' CHANGELOG.md
-          cat -s CHANGELOG.md > temp_dir/cleaned.md
-          mv temp_dir/cleaned.md CHANGELOG.md
+          cat -s temp_dir/complete.md | sed '/^---$/d' | awk 'BEGIN{prev=""} {if (prev ~ /^## \[/ && $0 ~ /^$/) {print "---"; print ""} prev=$0; print}' > CHANGELOG.md
       
       - name: Remove temporary files
         if: steps.check_changes.outputs.skip_update != 'true'
         run: |
-          rm -rf temp_dir new_changes.md additional_changes.txt core_changes.txt additional_raw.txt core_raw.txt footer.md rest.md header.md releases.md
+          rm -rf temp_dir new_changes.md additional_changes.txt core_changes.txt additional_raw.txt core_raw.txt footer.md
       
       - name: Get current date
         id: date
