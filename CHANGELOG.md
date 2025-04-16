@@ -4,19 +4,25 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
-## [2025-04-12]
+## [2025-04-16]
 
 ### 🧩 Additional Packages
+- ⚫ banana-utils: optimizing banana-restore process by @SuperKali
+- 🌬️ luci-app-fan: updated warn and crit values of notifications by @SuperKali
+- 🗑️ luci-app-fan: remove invalid translation by @SuperKali
+- 🛠️ feat: improve luci-app-fan UI and notifications by @SuperKali
 
-- 🔼 `luci-app-fan`: bump version to **v1.0.11** & improve time range button layout on mobile by @SuperKali  
-- 🔼 `luci-app-fan`: bump version to **v1.0.10** by @SuperKali  
-- 🔼 `luci-app-fan`: bump version to **v1.0.9** by @SuperKali  
-- 📊 `luci-app-fan`: add temperature history chart by @SuperKali  
-- 🫥 `luci-app-fan`: hide average temperature when modem is not monitored by @SuperKali  
-- 🔼 `luci-app-fan`: bump version to **v1.0.8** by @SuperKali  
-- ⚙️ `luci-app-fan`: add option to disable modem temperature monitoring by @SuperKali  
-- 🔧 `banana-utils` & `linkup-optimization`: bump versioning, moved hostname logic to `banana-utils` and changed hostname from **LinkUP** to **BananaWRT** by @SuperKali  
-- 📝 README: added `luci-app-fan` to packages list by @SuperKali  
+### 🍌 BananaWRT Core
+- ⚫ workflow: still fixing automatic changelog by @SuperKali
+- ⚫ workflow: still fixing automatic changelog by @SuperKali
+- ⚫ workflow: still fixing automatic changelog by @SuperKali
+- 🐛 workflow: changelog generator fix footer by @SuperKali
+- ⚫ workflow: still fixing automatic changelog generator by @SuperKali
+- ⚫ workflow: should be fixed the empty space on changelog by @SuperKali
+- 🚀 workflow: add some fixes on changelog generator by @SuperKali
+- 🧹 workflow: ops, missing cleanup workspace by @SuperKali
+- 🚀 workflow: add missing stuff on changelog generator by @SuperKali
+- ⚫ workflow: typo on additional_pack repository by @SuperKali
 
 ---
 
@@ -72,5 +78,6 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
-🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **April 12, 2025**
+🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)
+
+📅 Release date: **April 16, 2025**
