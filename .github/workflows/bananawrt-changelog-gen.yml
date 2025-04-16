@@ -224,6 +224,11 @@ jobs:
           delete-branch: true
           labels: documentation, automation, changelog
 
+      - name: Cleanup Workspace
+        if: always()
+        run: |
+            sudo rm -rf ~/.netrc
+
       - name: Delete workflow runs
         uses: Mattraks/delete-workflow-runs@v2.0.6
         with:
