@@ -2,9 +2,30 @@
 
 All notable changes to **BananaWRT** will be documented in this file.
 
+
+## [2025-04-16]
 ---
 
+
+### 🧩 Additional Packages
+- ⚫ banana-utils: optimizing banana-restore process by @SuperKali
+- 🌬️ luci-app-fan: updated warn and crit values of notifications by @SuperKali
+- 🗑️ luci-app-fan: remove invalid translation by @SuperKali
+- 🛠️ feat: improve luci-app-fan UI and notifications by @SuperKali
+
+### 🍌 BananaWRT Core
+- ⚫ workflow: still fixing automatic changelog by @SuperKali
+- 🐛 workflow: changelog generator fix footer by @SuperKali
+- ⚫ workflow: still fixing automatic changelog generator by @SuperKali
+- ⚫ workflow: should be fixed the empty space on changelog by @SuperKali
+- 🚀 workflow: add some fixes on changelog generator by @SuperKali
+- 🧹 workflow: ops, missing cleanup workspace by @SuperKali
+- 🚀 workflow: add missing stuff on changelog generator by @SuperKali
+- ⚫ workflow: typo on additional_pack repository by @SuperKali
+
 ## [2025-04-12]
+---
+
 
 ### 🧩 Additional Packages
 
@@ -18,9 +39,10 @@ All notable changes to **BananaWRT** will be documented in this file.
 - 🔧 `banana-utils` & `linkup-optimization`: bump versioning, moved hostname logic to `banana-utils` and changed hostname from **LinkUP** to **BananaWRT** by @SuperKali  
 - 📝 README: added `luci-app-fan` to packages list by @SuperKali  
 
----
 
 ## [2025-04-09]
+---
+
 
 ### 🧩 Additional Packages
 
@@ -37,9 +59,10 @@ All notable changes to **BananaWRT** will be documented in this file.
 - 📄 release-template: added redirect link to changelog by @SuperKali  
 - ♻️ Align script from banana-utils by @SuperKali  
 
----
 
 ## [2025-04-07]
+---
+
 
 ### 🧩 Additional Packages
 
@@ -70,7 +93,6 @@ All notable changes to **BananaWRT** will be documented in this file.
 - 🛠️ Fixed missing functions in update script and added `--reset` flag to restore full configuration by @SuperKali  
 - 📢 Added more detailed explanations in feature section by @SuperKali  
 
----
 
-🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **April 12, 2025**
+🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)
+📅 Release date: **April 16, 2025**
