@@ -132,24 +132,21 @@ jobs:
         run: |
           TODAY=$(date +'%Y-%m-%d')
           echo "$TODAY" > .today
-          echo "## [$TODAY]" > temp_changelog.md
-          echo "" >> temp_changelog.md
-          
-          echo "### 🧩 Additional Packages" >> temp_changelog.md
-          echo "" >> temp_changelog.md
-          cat additional_changes.txt | while read line; do
-            echo "- $line" >> temp_changelog.md
-          done
-          echo "" >> temp_changelog.md
-          
-          echo "### 🍌 BananaWRT Core" >> temp_changelog.md
-          echo "" >> temp_changelog.md
-          cat core_changes.txt | while read line; do
-            echo "- $line" >> temp_changelog.md
-          done
-          echo "" >> temp_changelog.md
-          echo "---" >> temp_changelog.md
-          echo "" >> temp_changelog.md
+          {
+            echo "## [$TODAY]"
+            echo ""
+            echo "### 🧩 Additional Packages"
+            cat additional_changes.txt | while read line; do
+              echo "- $line"
+            done
+            echo ""
+            echo "### 🍌 BananaWRT Core"
+            cat core_changes.txt | while read line; do
+              echo "- $line"
+            done
+            echo ""
+            echo "---"
+          } > new_changes.md
       
       - name: Update release date footer
         if: steps.check_changes.outputs.skip_update != 'true'
@@ -166,19 +163,21 @@ jobs:
       - name: Prepend to CHANGELOG.md
         if: steps.check_changes.outputs.skip_update != 'true'
         run: |
-          head -3 CHANGELOG.md > header.md
-          echo "" >> header.md
-          echo "---" >> header.md
-          echo "" >> header.md
-          cat temp_changelog.md >> header.md
-          sed -n '/^## \[/,$p' CHANGELOG.md > rest.md
-          cat header.md rest.md > new_changelog.md
-          mv new_changelog.md CHANGELOG.md
+          mkdir -p temp_dir
+          awk '/^---$/{exit} {print}' CHANGELOG.md > temp_dir/header.md
+          echo "" >> temp_dir/header.md
+          echo "---" >> temp_dir/header.md
+          echo "" >> temp_dir/header.md
+          cat new_changes.md >> temp_dir/header.md
+          sed -n '/^## \[/,$p' CHANGELOG.md > temp_dir/versions.md
+          cat temp_dir/header.md temp_dir/versions.md > temp_dir/new_changelog.md
+          mv temp_dir/new_changelog.md CHANGELOG.md
       
       - name: Cleanup changelog (keep latest 10 releases)
         if: steps.check_changes.outputs.skip_update != 'true'
         run: |
-          awk 'BEGIN{header=""} /^## \[/{exit} {header=header $0 "\n"} END{printf "%s", header}' CHANGELOG.md > header.md
+          mkdir -p temp_dir
+          awk 'BEGIN{header=""} /^## \[/{exit} {header=header $0 "\n"} END{printf "%s", header}' CHANGELOG.md > temp_dir/header.md
           
           awk 'BEGIN{save=0; content=""} 
               /^## \[/{save=1; releases++} 
@@ -186,16 +185,19 @@ jobs:
               END{printf "%s", content}' CHANGELOG.md | 
               awk -v RS="---\n\n" 'BEGIN{count=0}
                   /^## \[/{count++}
-                  count <= 10 {print $0 (count<=9 ? "---\n\n" : "")}' > releases.md
+                  count <= 10 {print $0 (count<=9 ? "---\n\n" : "")}' > temp_dir/releases.md
           
           tac CHANGELOG.md | awk 'BEGIN{footer=""; found=0} 
               found==1 {footer=$0 "\n" footer} 
               /^🛠️/{found=1} 
-              END{printf "%s", footer}' > footer.md
+              END{printf "%s", footer}' > temp_dir/footer.md
           
-          cat header.md releases.md footer.md > CHANGELOG.md
-          
-          rm -f header.md releases.md footer.md temp_changelog.md .today additional_changes.txt core_changes.txt additional_raw.txt core_raw.txt
+          cat temp_dir/header.md temp_dir/releases.md temp_dir/footer.md > CHANGELOG.md
+      
+      - name: Remove temporary files
+        if: steps.check_changes.outputs.skip_update != 'true'
+        run: |
+          rm -rf temp_dir new_changes.md .today additional_changes.txt core_changes.txt additional_raw.txt core_raw.txt rest.md header.md releases.md footer.md
       
       - name: Get current date
         id: date
