@@ -20,7 +20,7 @@ on:
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
   BANANAWRT_RELEASE: nightly
-  REPO_BRANCH: 24.10.0
+  REPO_BRANCH: 24.10.1
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: config/nightly/.config
   DIY_P1_SH: diy-part1.sh
