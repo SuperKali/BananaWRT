@@ -108,7 +108,7 @@ jobs:
           }
           
           if [[ "${{ steps.additional_logs.outputs.has_changes }}" == "true" ]]; then
-            echo "" > additional_changes.txt
+            > additional_changes.txt
             while IFS='|' read -r msg author; do
               parse_line "$msg" "$author" >> additional_changes.txt
             done < ../additional_raw.txt
@@ -118,7 +118,7 @@ jobs:
           fi
           
           if [[ "${{ steps.core_logs.outputs.has_changes }}" == "true" ]]; then
-            echo "" > core_changes.txt
+            > core_changes.txt
             while IFS='|' read -r msg author; do
               parse_line "$msg" "$author" >> core_changes.txt
             done < core_raw.txt
@@ -131,22 +131,17 @@ jobs:
         if: steps.check_changes.outputs.skip_update != 'true'
         run: |
           TODAY=$(date +'%Y-%m-%d')
-          echo "$TODAY" > .today
-          {
-            echo "## [$TODAY]"
-            echo ""
-            echo "### 🧩 Additional Packages"
-            cat additional_changes.txt | while read line; do
-              echo "- $line"
-            done
-            echo ""
-            echo "### 🍌 BananaWRT Core"
-            cat core_changes.txt | while read line; do
-              echo "- $line"
-            done
-            echo ""
-            echo "---"
-          } > new_changes.md
+          cat > new_changes.md << EOF
+            ## [$TODAY]
+
+            ### 🧩 Additional Packages
+            $(cat additional_changes.txt | sed 's/^/- /')
+
+            ### 🍌 BananaWRT Core
+            $(cat core_changes.txt | sed 's/^/- /')
+
+            ---
+            EOF
       
       - name: Update release date footer
         if: steps.check_changes.outputs.skip_update != 'true'
@@ -156,7 +151,6 @@ jobs:
           if grep -q "^📅 Release date:" CHANGELOG.md; then
             sed -i "s/^📅 Release date: .*/📅 Release date: **$MONTH $TODAY**/" CHANGELOG.md
           else
-            echo "" >> CHANGELOG.md
             echo "📅 Release date: **$MONTH $TODAY**" >> CHANGELOG.md
           fi
       
@@ -180,7 +174,7 @@ jobs:
           awk 'BEGIN{header=""} /^## \[/{exit} {header=header $0 "\n"} END{printf "%s", header}' CHANGELOG.md > temp_dir/header.md
           
           awk 'BEGIN{save=0; content=""} 
-              /^## \[/{save=1; releases++} 
+              /^## \[/{save=1} 
               save==1 {content=content $0 "\n"} 
               END{printf "%s", content}' CHANGELOG.md | 
               awk -v RS="---\n\n" 'BEGIN{count=0}
@@ -193,11 +187,13 @@ jobs:
               END{printf "%s", footer}' > temp_dir/footer.md
           
           cat temp_dir/header.md temp_dir/releases.md temp_dir/footer.md > CHANGELOG.md
+          cat -s CHANGELOG.md > temp_dir/cleaned.md
+          mv temp_dir/cleaned.md CHANGELOG.md
       
       - name: Remove temporary files
         if: steps.check_changes.outputs.skip_update != 'true'
         run: |
-          rm -rf temp_dir new_changes.md .today additional_changes.txt core_changes.txt additional_raw.txt core_raw.txt rest.md header.md releases.md footer.md
+          rm -rf temp_dir new_changes.md additional_changes.txt core_changes.txt additional_raw.txt core_raw.txt rest.md header.md releases.md footer.md
       
       - name: Get current date
         id: date
