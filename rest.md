@@ -1,27 +1,3 @@
-# 📦 CHANGELOG
-
-All notable changes to **BananaWRT** will be documented in this file.
-
----
-
-## [2025-04-16]
-
-### 🧩 Additional Packages
-
-- ⚫ banana-utils: optimizing banana-restore process by @SuperKali
-- 🌬️ luci-app-fan: updated warn and crit values of notifications by @SuperKali
-- 🗑️ luci-app-fan: remove invalid translation by @SuperKali
-- 🛠️ feat: improve luci-app-fan UI and notifications by @SuperKali
-
-### 🍌 BananaWRT Core
-
-- 🧹 workflow: ops, missing cleanup workspace by @SuperKali
-- 🚀 workflow: add missing stuff on changelog generator by @SuperKali
-- ⚫ workflow: typo on additional_pack repository by @SuperKali
-
----
-
-
 ## [2025-04-12]
 
 ### 🧩 Additional Packages
@@ -37,7 +13,6 @@ All notable changes to **BananaWRT** will be documented in this file.
 - 📝 README: added `luci-app-fan` to packages list by @SuperKali  
 
 ---
-
 
 ## [2025-04-09]
 
@@ -57,7 +32,6 @@ All notable changes to **BananaWRT** will be documented in this file.
 - ♻️ Align script from banana-utils by @SuperKali  
 
 ---
-
 
 ## [2025-04-07]
 
@@ -92,9 +66,5 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
-
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
 📅 Release date: **April 2025-04-16**
----
-
-
