@@ -4,6 +4,21 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
+## [2025-04-17]
+
+### 🍌 BananaWRT Core
+
+- 🐛 CHANGELOG: fixing wrong issue to get information by @SuperKali  
+- 🐛 CHANGELOG: fixing some issues 1 by @SuperKali  
+- 🐛 CHANGELOG: fixing some issues by @SuperKali  
+- 🐛 CHANGELOG: fix issue on formatting commit message by @SuperKali  
+- ➕ CHANGELOG: Adding automatic changelog updater by @SuperKali  
+- 🔼 Bump ImmortalWRT to version v24.10.1 (#40) by @SuperKali  
+- ➕ CHANGELOG: added the release of 2025-04-16 by @SuperKali  
+
+---
+
+
 ## [2025-04-16]
 
 ### 🧩 Additional Packages
@@ -85,4 +100,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **April 16, 2025**
+📅 Release date: **April 17, 2025**
