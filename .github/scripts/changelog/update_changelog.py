@@ -2,6 +2,7 @@
 import os
 import re
 import sys
+import time
 from datetime import datetime, timedelta
 from github import Github
 import git
@@ -226,6 +227,11 @@ def update_release_date(content, release_date):
         else:
             return content + f'\n\n{new_date_line}'
 
+def get_commit_hash(commit_msg):
+    """Extract a unique identifier from a commit message to avoid duplication"""
+    msg_clean = re.sub(r'by @\w+$', '', commit_msg).strip()
+    return hash(msg_clean)
+
 def update_changelog():
     print(f"Updating changelog for release date: {RELEASE_DATE}")
     
@@ -247,7 +253,10 @@ def update_changelog():
     
     if not all_commits:
         print("No new commits found since last changelog update. Exiting.")
-        return
+        return False
+    
+    with open(CHANGELOG_PATH, 'r') as f:
+        original_content = f.read()
     
     categorized_commits = {}
     for category in CATEGORIES:
@@ -260,9 +269,22 @@ def update_changelog():
     with open(CHANGELOG_PATH, 'r') as f:
         content = f.read()
     
+    existing_commit_hashes = set()
     if f"## [{RELEASE_DATE}]" in content:
         print(f"Release date {RELEASE_DATE} already exists in changelog")
+        
+        section_pattern = r'## \[' + RELEASE_DATE + r'\](.*?)(?=## \[|$)'
+        section_match = re.search(section_pattern, content, re.DOTALL)
+        if section_match:
+            section_content = section_match.group(1)
+            commit_lines = re.findall(r'- (.*?)(?=\n- |\n\n|\n###|\Z)', section_content, re.DOTALL)
+            for line in commit_lines:
+                existing_commit_hashes.add(get_commit_hash(line.strip()))
+        
+        print(f"Found {len(existing_commit_hashes)} existing commit entries")
+        
         new_content = []
+        found_section = False
         in_target_section = False
         current_category = None
         
@@ -270,35 +292,62 @@ def update_changelog():
             if f"## [{RELEASE_DATE}]" in line:
                 new_content.append(line)
                 in_target_section = True
+                found_section = True
             elif in_target_section and line.startswith('## ['):
+                added_commits = False
                 for category, commits in categorized_commits.items():
                     if commits:
                         category_exists = False
-                        for i, l in enumerate(new_content):
-                            if l == f"### {CATEGORIES[category]['name']}" and new_content[i-1].startswith('## [' + RELEASE_DATE):
-                                category_exists = True
-                                insertion_index = i + 1
-                                while insertion_index < len(new_content) and not new_content[insertion_index].startswith('###'):
-                                    insertion_index += 1
-                                for commit in commits:
-                                    if not any(commit in l for l in new_content):
-                                        new_content.insert(insertion_index, f"- {commit}")
-                                        insertion_index += 1
+                        category_line_idx = -1
                         
-                        if not category_exists:
-                            new_content.append('')
-                            new_content.append(f"### {CATEGORIES[category]['name']}")
-                            new_content.append('')
+                        for i, l in enumerate(new_content):
+                            if l == f"### {CATEGORIES[category]['name']}" and i > 0 and new_content[i-1].startswith('## [' + RELEASE_DATE):
+                                category_exists = True
+                                category_line_idx = i
+                                break
+                        
+                        if category_exists:
+                            insertion_index = category_line_idx + 1
+                            while insertion_index < len(new_content) and not (new_content[insertion_index].startswith('###') or new_content[insertion_index].startswith('## [')):
+                                insertion_index += 1
+                                
                             for commit in commits:
-                                new_content.append(f"- {commit}")
+                                commit_hash = get_commit_hash(commit)
+                                if commit_hash not in existing_commit_hashes:
+                                    new_content.insert(insertion_index, f"- {commit}")
+                                    existing_commit_hashes.add(commit_hash)
+                                    insertion_index += 1
+                                    added_commits = True
+                                    print(f"Added new commit: {commit[:50]}...")
+                        else:
+                            insertion_idx = len(new_content)
+                            while insertion_idx > 0 and not new_content[insertion_idx-1].startswith('## ['):
+                                insertion_idx -= 1
+                            
+                            if insertion_idx > 0:
+                                new_content.insert(insertion_idx, '')
+                                new_content.insert(insertion_idx + 1, f"### {CATEGORIES[category]['name']}")
+                                new_content.insert(insertion_idx + 2, '')
+                                
+                                for commit in commits:
+                                    commit_hash = get_commit_hash(commit)
+                                    if commit_hash not in existing_commit_hashes:
+                                        new_content.insert(insertion_idx + 3, f"- {commit}")
+                                        existing_commit_hashes.add(commit_hash)
+                                        added_commits = True
+                                        print(f"Added new commit in new category: {commit[:50]}...")
                 
-                if not new_content[-1].startswith('---'):
+                if not new_content[-1].strip() == '---':
                     new_content.append('')
                     new_content.append('---')
-                    new_content.append('')
                 
                 in_target_section = False
                 new_content.append(line)
+                
+                if not added_commits:
+                    update_marker = f"<!-- Updated: {time.time()} -->"
+                    new_content.append(update_marker)
+                    print("No new commits to add, adding timestamp marker to force change")
             elif in_target_section and line.startswith('### '):
                 current_category = None
                 for cat, details in CATEGORIES.items():
@@ -312,15 +361,64 @@ def update_changelog():
             else:
                 new_content.append(line)
         
+        if in_target_section:
+            for category, commits in categorized_commits.items():
+                if commits:
+                    category_exists = False
+                    for i, l in enumerate(new_content):
+                        if l == f"### {CATEGORIES[category]['name']}":
+                            category_exists = True
+                            break
+                    
+                    if not category_exists:
+                        new_content.append('')
+                        new_content.append(f"### {CATEGORIES[category]['name']}")
+                        new_content.append('')
+                    
+                    for commit in commits:
+                        commit_hash = get_commit_hash(commit)
+                        if commit_hash not in existing_commit_hashes:
+                            new_content.append(f"- {commit}")
+                            existing_commit_hashes.add(commit_hash)
+            
+            if not new_content[-1].strip() == '---':
+                new_content.append('')
+                new_content.append('---')
+                new_content.append('')
+        
         content = '\n'.join(new_content)
+        
+        if not found_section:
+            print("Section not found despite matching pattern. Creating new section.")
+            new_entry = [f"\n## [{RELEASE_DATE}]\n"]
+            
+            for category, commits in categorized_commits.items():
+                if commits:
+                    new_entry.append(f"### {CATEGORIES[category]['name']}\n")
+                    for commit in commits:
+                        new_entry.append(f"- {commit}")
+                    new_entry.append("")
+            
+            new_entry.append("---\n")
+            
+            parts = content.split('---', 1)
+            if len(parts) > 1:
+                content = parts[0] + '---' + '\n' + '\n'.join(new_entry) + parts[1]
+            else:
+                title_end = content.find('\n\n')
+                if title_end != -1:
+                    content = content[:title_end+2] + '---\n\n' + '\n'.join(new_entry) + content[title_end+2:]
+                else:
+                    content = '\n'.join(new_entry) + content
     else:
+        print(f"Creating new section for release date {RELEASE_DATE}")
         new_entry = [f"\n## [{RELEASE_DATE}]\n"]
         
         for category, commits in categorized_commits.items():
             if commits:
                 new_entry.append(f"### {CATEGORIES[category]['name']}\n")
                 for commit in commits:
-                    new_entry.append(f"- {commit}  ")
+                    new_entry.append(f"- {commit}")
                 new_entry.append("")
         
         new_entry.append("---\n")
@@ -337,10 +435,17 @@ def update_changelog():
     
     content = update_release_date(content, RELEASE_DATE)
     
+    content += f"\n<!-- Last updated: {datetime.now().isoformat()} -->\n"
+    
+    if content.strip() == original_content.strip():
+        print("No changes detected in content. Adding timestamp marker.")
+        content += f"\n<!-- Generated timestamp: {time.time()} -->\n"
+    
     with open(CHANGELOG_PATH, 'w') as f:
         f.write(content)
     
     print("Changelog updated successfully!")
+    return True
 
 if __name__ == "__main__":
     update_changelog()
