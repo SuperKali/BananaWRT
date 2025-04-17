@@ -4,6 +4,35 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
+## [2025-04-17]
+
+### 🧩 Additional Packages
+
+- 🔼 Bump: `banana-utils` to v1.09 by @SuperKali  
+- 🛠️ `banana-utils`: Optimizing banana-restore process by @SuperKali  
+- 🔄 `luci-app-fan`: Updated warn and crit values of notifications by @SuperKali  
+- 🔄 `luci-app-fan`: Remove invalid translation by @SuperKali  
+- 🌟 Feat: improve `luci-app-fan` UI and notifications by @SuperKali  
+- 🐛 Bump versioning of `linkup-optimization` and luci-app-sms-tool and fix default tty port for send AT command and SMS by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🧪 CHANGELOG: revert to test by @SuperKali  
+- ⏪ CHANGELOG: revert previous commit and try another method by @SuperKali  
+- 🗑️ CHANGELOG: remove safe directory by @SuperKali  
+- 🐛 CHANGELOG: fixing additional pack checks by @SuperKali  
+- 🔄 Docs: Update CHANGELOG for 2025-04-17 (#43) by @SuperKali  
+- 🐛 CHANGELOG: fixing wrong issue to get information by @SuperKali  
+- 🐛 CHANGELOG: fixing some issues 1 by @SuperKali  
+- 🐛 CHANGELOG: fixing some issues by @SuperKali  
+- 🐛 CHANGELOG: fix issue on formatting commit message by @SuperKali  
+- ➕ CHANGELOG: Adding automatic changelog updater by @SuperKali  
+- 🔼 Bump ImmortalWRT to version v24.10.1 (#40) by @SuperKali  
+- ➕ CHANGELOG: added the release of 2025-04-16 by @SuperKali  
+
+---
+
+
 ## [2025-04-12]
 
 ### 🧩 Additional Packages
@@ -73,4 +102,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **April 12, 2025**
+📅 Release date: **April 17, 2025**
