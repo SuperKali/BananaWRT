@@ -4,6 +4,27 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
+## [2025-04-18]
+
+### 🧩 Additional Packages
+
+- 🔼 Bump: `banana-utils` to v1.09 by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🔄 Docs: Update CHANGELOG for 2025-04-17 (#46) by @SuperKali  
+- 🧪 CHANGELOG: revert to test by @SuperKali  
+- ⏪ CHANGELOG: revert previous commit and try another method by @SuperKali  
+- 🗑️ CHANGELOG: remove safe directory by @SuperKali  
+- 🐛 CHANGELOG: fixing additional pack checks by @SuperKali  
+- 🔄 Docs: Update CHANGELOG for 2025-04-17 (#43) by @SuperKali  
+- 🐛 CHANGELOG: fixing wrong issue to get information by @SuperKali  
+- 🐛 CHANGELOG: fixing some issues 1 by @SuperKali  
+- 🐛 CHANGELOG: fixing some issues by @SuperKali  
+
+---
+
+
 ## [2025-04-17]
 
 ### 🧩 Additional Packages
@@ -102,4 +123,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **April 17, 2025**
+📅 Release date: **April 18, 2025**
