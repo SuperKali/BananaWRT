@@ -4,6 +4,19 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
+## [2025-04-20]
+
+### 🧩 Additional Packages
+
+- 🐛 `banana-utils`: Fix repository configuration. by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🔄 Docs: Update CHANGELOG for 2025-04-18 (#48) by @SuperKali  
+
+---
+
+
 ## [2025-04-18]
 
 ### 🧩 Additional Packages
@@ -111,4 +124,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **April 18, 2025**
+📅 Release date: **April 20, 2025**
