@@ -4,6 +4,26 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
+## [2025-04-24]
+
+### 🧩 Additional Packages
+
+- 🐛 `banana-utils`: Fix hostname function. by @SuperKali  
+- 🌟 `luci-app-fan`: Improve hardware path detection in uci-defaults script by @SuperKali  
+- 🐛 `luci-app-fan`: Fix some stuff by @SuperKali  
+- 🔄 `luci-app-fan`: Remove warning if pwm_enable not exist and remove the box from UI by @SuperKali  
+- 🐛 `luci-app-fan`: Fix an issue if pwm enable is missing by @SuperKali  
+- 🐛 `banana-utils`: Fix repository configuration. by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🔼 Bump actions/setup-python from 4 to 5 (#50) by @dependabot[bot]  
+- 🔼 Bump softprops/action-gh-release from 2.2.1 to 2.2.2 (#51) by @dependabot[bot]  
+- 🔄 Docs: Update CHANGELOG for 2025-04-18 (#48) by @SuperKali  
+
+---
+
+
 ## [2025-04-18]
 
 ### 🧩 Additional Packages
@@ -111,4 +131,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **April 18, 2025**
+📅 Release date: **April 24, 2025**
