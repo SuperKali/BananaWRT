@@ -4,6 +4,17 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
+## [2025-05-01]
+
+### 🍌 BananaWRT Core
+
+- 🔼 Bump stable version to v24.10.1 by @SuperKali  
+- 🔄 Docs: Update CHANGELOG for 2025-04-24 (#54) by @SuperKali  
+- 🔼 Bump actions/download-artifact from 4.2.1 to 4.3.0 (#6) by @dependabot[bot]  
+
+---
+
+
 ## [2025-04-24]
 
 ### 🧩 Additional Packages
@@ -131,4 +142,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **April 24, 2025**
+📅 Release date: **May 01, 2025**
