@@ -4,6 +4,15 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
+## [2025-05-04]
+
+### 🧩 Additional Packages
+
+- 🔄 `luci-app-3ginfo`: Remove adb dependency by @SuperKali  
+
+---
+
+
 ## [2025-05-01]
 
 ### 🍌 BananaWRT Core
@@ -142,4 +151,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **May 01, 2025**
+📅 Release date: **May 04, 2025**
