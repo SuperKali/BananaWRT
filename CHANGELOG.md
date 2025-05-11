@@ -4,6 +4,23 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
+## [2025-05-11]
+
+### 🧩 Additional Packages
+
+- ➕ Added support for automatic APN detection by using atc-apn-database package by @SuperKali  
+- ➕ Luci-proto-atc & atc-fib-fm350: clean up and add check if apn is already configured by @SuperKali  
+- 🔼 Bump: `linkup-optimization` to 2.23 by @SuperKali  
+- 🗑️ `linkup-optimization`: Remove default apn by @SuperKali  
+- 🐛 ATC: minor fixes on apn auto detection by @SuperKali  
+- 🐛 ATC: minor fixes on apn auto detection by @SuperKali  
+- 🐛 ATC: fix some issue on apn auto detection by @SuperKali  
+- 📢 ATC: first support to auto apn connection by @SuperKali  
+- 🔼 Bumps: `linkup-optimization` and luci-app-sms-tool and revert AT port to ttyUSB1 by @SuperKali  
+
+---
+
+
 ## [2025-05-04]
 
 ### 🧩 Additional Packages
@@ -151,4 +168,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **May 04, 2025**
+📅 Release date: **May 11, 2025**
