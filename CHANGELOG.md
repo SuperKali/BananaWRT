@@ -4,6 +4,18 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
+## [2025-05-21]
+
+### 🧩 Additional Packages
+
+- 🗑️ Atc-apn-database and atc-fib-fm350_gl: remove unnecessary information by @SuperKali  
+- 🐛 Atc-apn-database & atc-fib-fm350_gl, minor fixes by @SuperKali  
+- ➕ Atc-apn-database: Bump version and added MIT License by @SuperKali  
+- 🔄 `linkup-optimization`: Removed wifi config and updated network conf by @SuperKali  
+
+---
+
+
 ## [2025-05-11]
 
 ### 🧩 Additional Packages
@@ -168,4 +180,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **May 11, 2025**
+📅 Release date: **May 21, 2025**
