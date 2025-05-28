@@ -4,6 +4,23 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
+## [2025-05-28]
+
+### 🧩 Additional Packages
+
+- ➕ Scripts: add packages mapping to avoid errors by @SuperKali  
+- 📦 Scripts: better check if packages is already installed by @SuperKali  
+- 🛠️ Scripts: moved to the correct directory and named with correctly name by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🐛 Scripts: fix error on source formatter.sh by @SuperKali  
+- 🐛 Metadata: fix formatter source by @SuperKali  
+- 🐛 Scripts: fix some issue on setup script by @SuperKali  
+
+---
+
+
 ## [2025-05-21]
 
 ### 🧩 Additional Packages
@@ -180,4 +197,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **May 21, 2025**
+📅 Release date: **May 28, 2025**
