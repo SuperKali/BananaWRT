@@ -3,6 +3,36 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-06-01]
+
+### 🧩 Additional Packages
+
+- ➕ Scripts: add packages mapping to avoid errors by @SuperKali  
+- 🛠️ Scripts: better check if packages is already installed by @SuperKali  
+- 🐛 Workflow: fix builder packages by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🐛 Changelog: trying to fix duplicated commits by @SuperKali  
+- 🛠️ Scripts: checks if file exist by @SuperKali  
+- 🐛 Dts: Add missing #address-cells and #size-cells to fix the dtc warnings by @SuperKali  
+- 🗑️ Scripts: remove empty space on metadata generator by @SuperKali  
+- 🐛 Scripts: fix error on source formatter.sh by @SuperKali  
+- 🐛 Metadata: fix formatter source by @SuperKali  
+- 🐛 Workflows: fix create release tag by @SuperKali  
+- 🏗️ Scripts: added formatted info on build workflow by @SuperKali  
+- 🐛 Scripts: fix some issue on setup script by @SuperKali  
+- 🛠️ Workflow: aligned all script for generate bananawrt metadata by @SuperKali  
+- 🗑️ Workflow: remove print empty release tag by @SuperKali  
+- 🛠️ Workflow: testing metadata generator into the bananawrt system by @SuperKali  
+- 🛠️ Scripts: moved to the correct directory and named with correctly name by @SuperKali  
+- 🐛 Atc-apn-database: fix compile on arm64 by @SuperKali  
+- 🐛 Workflows: fix permission on script execution by @SuperKali  
+- 🛠️ Workflows: renamed some script with new's by @SuperKali  
+- 🐛 Atc-fib-fm350_gl: fix minor issue when debug is enabled by @SuperKali  
+
+---
+
 
 ## [2025-05-21]
 
@@ -180,4 +210,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **May 21, 2025**
+📅 Release date: **June 01, 2025**
