@@ -3,6 +3,20 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-06-08]
+
+### 🧩 Additional Packages
+
+- 🛠️ `banana-utils`: added the current firmware information on banana-updater script by @SuperKali  
+- 🔼 `luci-app-fan` and allow to compile for all devices by @SuperKali  
+- 🗑️ atc-fib-fm350_gl: remove detect_and_set_apn from unnecessary checks by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🔄 scripts: updated banana-update script from `banana-utils` package by @SuperKali  
+
+---
+
 ## [2025-06-01]
 
 ### 🧩 Additional Packages
@@ -211,4 +225,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **June 01, 2025**
+📅 Release date: **June 08, 2025**
