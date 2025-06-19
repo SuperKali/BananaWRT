@@ -3,6 +3,20 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-06-19]
+
+### 🧩 Additional Packages
+
+- 🐛 3ginfo: fix netdrv value to retrieve qmi protocol for fibocom fm160 by @SuperKali  
+- ➕ modem: add first support to fibocom fm160-eau on 3ginfo-lite & `modemband` package by @SuperKali  
+- 🐛 `linkup-optimization`: fix locatime by timezone by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🔼 build(deps): bump softprops/action-gh-release from 2.2.2 to 2.3.2 (#77) by @dependabot[bot]  
+
+---
+
 ## [2025-06-08]
 
 ### 🧩 Additional Packages
@@ -225,4 +239,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **June 08, 2025**
+📅 Release date: **June 19, 2025**
