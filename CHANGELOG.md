@@ -3,6 +3,15 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-07-12]
+
+### 🍌 BananaWRT Core
+
+- 🔼 bump (stable) immortalwrt to version v24.10.2 by @SuperKali  
+- 🛠️ workflow: sdk added nproc input by @SuperKali  
+
+---
+
 ## [2025-06-26]
 
 ### 🍌 BananaWRT Core
@@ -248,4 +257,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **June 26, 2025**
+📅 Release date: **July 12, 2025**
