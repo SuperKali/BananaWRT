@@ -3,6 +3,22 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-08-01]
+
+### 🧩 Additional Packages
+
+- 🔼 `luci-app-3ginfo` and hide temperature when is zero by @SuperKali  
+- 🛠️ `luci-app-3ginfo`-lite: correct grammar issue by @SuperKali  
+- 🛠️ adding new packages: luci-proto-quectel & quectel-cm by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🗑️ scripts: remove luci-proto-quectel & quectel-cm from stock packages by @SuperKali  
+- 🏗️ workflow: build sdk matrix, change ftp action to manual command by @SuperKali  
+- 🔄 docs: update changelog for 2025-07-12 (#84) by @SuperKali  
+
+---
+
 ## [2025-07-12]
 
 ### 🍌 BananaWRT Core
@@ -257,4 +273,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **July 12, 2025**
+📅 Release date: **August 01, 2025**
