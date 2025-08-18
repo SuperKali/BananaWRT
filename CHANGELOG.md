@@ -3,6 +3,21 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-08-18]
+
+### 🧩 Additional Packages
+
+- 🐛 fix quectel/fibocom pcie issues by @SuperKali  
+- 🛠️ testing configuration if it works or not on quectel-cm by @SuperKali  
+- 🛠️ quectel-cm: fixing issue that sometime connection not working by @SuperKali  
+- ➕ luci-proto-quectel: add support for mhi devices (pcie) by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🔼 build(deps): bump actions/download-artifact from 4 to 5 (#86) by @dependabot[bot]  
+
+---
+
 ## [2025-08-01]
 
 ### 🧩 Additional Packages
@@ -273,4 +288,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **August 01, 2025**
+📅 Release date: **August 18, 2025**
