@@ -3,6 +3,23 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-08-19]
+
+### 🧩 Additional Packages
+
+- ➕ `luci-app-fan`: add support to fibocom fm160 by @SuperKali  
+- 🐛 `luci-app-fan`: fix at+temp for fibocom fm350 by @SuperKali  
+- ➕ `luci-app-fan`: add at+temp command on fm350 by @SuperKali  
+- 🐛 quectel-cm: fix wrong dependency by @SuperKali  
+- ➕ `luci-app-fan`: add automatic modem detection by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🔼 build(deps): bump actions/checkout from 4 to 5 (#88) by @dependabot[bot]  
+- 🔄 docs: update changelog for 2025-08-18 (#87) by @SuperKali  
+
+---
+
 ## [2025-08-18]
 
 ### 🧩 Additional Packages
@@ -288,4 +305,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **August 18, 2025**
+📅 Release date: **August 19, 2025**
