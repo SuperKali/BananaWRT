@@ -3,6 +3,14 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-08-23]
+
+### 🧩 Additional Packages
+
+- ➕ `luci-app-fan`: add pwm inverted option by @SuperKali  
+
+---
+
 ## [2025-08-19]
 
 ### 🧩 Additional Packages
@@ -305,4 +313,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **August 19, 2025**
+📅 Release date: **August 23, 2025**
