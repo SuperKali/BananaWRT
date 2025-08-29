@@ -3,6 +3,20 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-08-29]
+
+### 🍌 BananaWRT Core
+
+- 🐛 patch-manager: fix count files by @SuperKali  
+- 🐛 patch-manager: fix patch dir by @SuperKali  
+- 🐛 patch-manager: fix source to formatter.sh by @SuperKali  
+- 🐛 patch-manager: fix source to formatter.sh by @SuperKali  
+- ➕ scripts: add patch-manager to handle all custom stuff by @SuperKali  
+- 🐛 patch: fix space on name of the driver by @SuperKali  
+- ➕ kernel: add new directory for add custom kernel configuration and add a following patch by @SuperKali  
+
+---
+
 ## [2025-08-23]
 
 ### 🧩 Additional Packages
@@ -313,4 +327,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **August 23, 2025**
+📅 Release date: **August 29, 2025**
