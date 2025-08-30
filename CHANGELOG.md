@@ -3,6 +3,16 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-08-30]
+
+### 🍌 BananaWRT Core
+
+- ➕ workflow: add nproc option on selfhost by @SuperKali  
+- 🐛 prevent ethernet led from blinking unexpectedly by @SuperKali  
+- 🔄 docs: update changelog for 2025-08-29 (#91) by @SuperKali  
+
+---
+
 ## [2025-08-29]
 
 ### 🍌 BananaWRT Core
@@ -327,4 +337,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **August 29, 2025**
+📅 Release date: **August 30, 2025**
