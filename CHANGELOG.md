@@ -3,6 +3,24 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-09-24]
+
+### 🧩 Additional Packages
+
+- 🔼 build(deps): bump actions/download-artifact from 4.3.0 to 5.0.0 (#9) by @dependabot[bot]  
+- 🔼 build(deps): bump actions/checkout from 4.2.2 to 5.0.0 (#10) by @dependabot[bot]  
+- 🔼 build(deps): bump samkirkland/ftp-deploy-action from 4.3.5 to 4.3.6 (#11) by @dependabot[bot]  
+
+### 🍌 BananaWRT Core
+
+- 🔼 bump immortalwrt to version v24.10.3 (#95) by @SuperKali  
+- 🔼 build(deps): bump softprops/action-gh-release from 2.3.2 to 2.3.3 (#93) by @dependabot[bot]  
+- 🔼 build(deps): bump actions/setup-python from 5 to 6 (#94) by @dependabot[bot]  
+- 🐛 stable - prevent ethernet led from blinking unexpectedly by @SuperKali  
+- 🔄 docs: update changelog for 2025-08-30 (#92) by @SuperKali  
+
+---
+
 ## [2025-08-30]
 
 ### 🍌 BananaWRT Core
@@ -337,4 +355,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **August 30, 2025**
+📅 Release date: **September 24, 2025**
