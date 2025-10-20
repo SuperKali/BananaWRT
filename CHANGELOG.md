@@ -3,6 +3,23 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-10-20]
+
+### 🧩 Additional Packages
+
+- 🐛 quectel-cm: fix no internet detection by @SuperKali  
+- 🐛 `banana-utils`: fix missing dependency by @SuperKali  
+- 🔼 workflow: bump version of matrix builder by @SuperKali  
+- ➕ `banana-utils`: add timeout on banner and bump version by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🔼 build(deps): bump softprops/action-gh-release from 2.3.4 to 2.4.1 (#100) by @dependabot[bot]  
+- 🔼 build(deps): bump softprops/action-gh-release from 2.3.3 to 2.3.4 (#99) by @dependabot[bot]  
+- 🔼 bump immortalwrt stable to version v24.10.3 by @SuperKali  
+
+---
+
 ## [2025-09-24]
 
 ### 🧩 Additional Packages
@@ -355,4 +372,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **September 24, 2025**
+📅 Release date: **October 20, 2025**
