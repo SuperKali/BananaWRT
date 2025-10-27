@@ -179,7 +179,7 @@ jobs:
         EOF
 
     - name: Upload SDK Artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: sdk-${{ matrix.arch }}-${{ matrix.version }}
         path: ${{ runner.workspace }}/sdk-artifacts
