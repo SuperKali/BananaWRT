@@ -19,7 +19,7 @@ on:
 
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
-  REPO_BRANCH: 24.10.3
+  REPO_BRANCH: 24.10.4
   BANANAWRT_RELEASE: nightly
   CONFIG_FILE: config/nightly/.config
   FEEDS_CONF: feeds.conf.default
