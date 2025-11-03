@@ -3,6 +3,26 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-11-03]
+
+### 🧩 Additional Packages
+
+- 🔼 build(deps): bump mattraks/delete-workflow-runs from 2.0.6 to 2.1.0 (#12) by @dependabot[bot]  
+- 🔼 build(deps): bump actions/download-artifact from 5.0.0 to 6.0.0 (#13) by @dependabot[bot]  
+- 🔼 build(deps): bump actions/upload-artifact from 4.6.2 to 5.0.0 (#14) by @dependabot[bot]  
+
+### 🍌 BananaWRT Core
+
+- 🔼 bump immortalwrt stable to version 24.10.4 by @SuperKali  
+- 🐛 sdk artifacts ftp upload with rsync by @SuperKali  
+- 🔼 bump immortalwrt to version v24.10.4 (#105) by @SuperKali  
+- 🔼 build(deps): bump actions/download-artifact from 5 to 6 (#102) by @dependabot[bot]  
+- 🔼 build(deps): bump mattraks/delete-workflow-runs from 2.0.6 to 2.1.0 (#103) by @dependabot[bot]  
+- 🔼 build(deps): bump actions/upload-artifact from 4 to 5 (#104) by @dependabot[bot]  
+- 🔄 docs: update changelog for 2025-10-20 (#101) by @SuperKali  
+
+---
+
 ## [2025-10-20]
 
 ### 🧩 Additional Packages
@@ -372,4 +392,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **October 20, 2025**
+📅 Release date: **November 03, 2025**
