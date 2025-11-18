@@ -25,6 +25,7 @@ jobs:
       release_type: stable
       repo_branch: "24.10.4"
       config_file: config/stable/.config
+      enable_cache: false  # Disable cache for monthly stable builds (often version upgrades)
       upload_bin_dir: false
       upload_package_dir: true
       upload_firmware: true

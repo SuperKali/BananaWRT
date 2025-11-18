@@ -25,6 +25,7 @@ jobs:
       release_type: nightly
       repo_branch: "24.10.4"
       config_file: config/nightly/.config
+      enable_cache: true  # Enable cache for frequent nightly builds
       upload_bin_dir: false
       upload_package_dir: true
       upload_firmware: true

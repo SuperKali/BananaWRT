@@ -18,7 +18,7 @@
 - Automatic **APN** detection for quick and seamless configuration (atc-apn-database)
 - Custom LPAC add-on for advanced eSIM management (lpac).
 - Optimized support of 4IceG add-ons, such as (luci-app-3ginfo, modemband, etc).
-- Automated builds using GitHub Actions.
+- Automated builds using GitHub Actions with **multi-layer caching** (2-3x faster builds).
 - Based on the stable and feature-rich **ImmortalWRT** distribution.
 
 ---
@@ -66,6 +66,30 @@ This repository uses self-hosted runners to enhance performance and control in C
 Each worker is optimized for specific CI/CD tasks and is managed by the development team to ensure reliability and performance. If you’d like to contribute a new worker, please open an issue in this repository to discuss the details and integration process.
 
 A special thanks to the supporters who have donated a worker node, helping to strengthen the project.
+
+---
+
+## 🚀 Build System & Performance
+
+BananaWRT uses an optimized build system with **multi-layer caching** for nightly builds to dramatically reduce compilation times:
+
+| Build Type | Without Cache | With Cache (Nightly) | Time Saved |
+|------------|---------------|----------------------|------------|
+| First build | 60-90 min | 60-90 min | - |
+| Subsequent builds | 60-90 min | **20-30 min** | **30-60 min** ⚡ |
+| Config changes | 60-90 min | **30-45 min** | **15-45 min** ⚡ |
+
+> **Note:** Cache is enabled only for nightly builds (weekly). Stable builds (monthly) run without cache as they often involve version upgrades.
+
+### Cache Layers
+
+- **📦 Downloads Cache**: Caches source tarballs (~1-3 GB, saves 5-10 min)
+- **🔧 Toolchain Cache**: Caches compiled toolchain (~500MB-1.5GB, saves 15-30 min)
+- **📚 Feeds Cache**: Caches package feeds (~100-300 MB, saves 2-5 min)
+
+For detailed information about the caching system, see [Build Cache Documentation](docs/BUILD-CACHE.md).
+
+---
 
 ## ⭐ Star History
 

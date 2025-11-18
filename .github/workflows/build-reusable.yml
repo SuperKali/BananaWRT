@@ -27,6 +27,11 @@ on:
         description: 'Path to config file'
         required: true
         type: string
+      enable_cache:
+        description: 'Enable build cache (recommended for nightly builds)'
+        required: false
+        type: boolean
+        default: false
       upload_bin_dir:
         description: 'Upload binary directory'
         required: false
@@ -112,6 +117,18 @@ jobs:
         cd ${{ runner.workspace }}/immortalwrt
         $GITHUB_WORKSPACE/scripts/utils/patch-manager.sh ${{env.BANANAWRT_RELEASE}} ${{ runner.workspace }}/immortalwrt
 
+    - name: Cache Feeds
+      if: inputs.enable_cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ runner.workspace }}/immortalwrt/feeds
+          ${{ runner.workspace }}/immortalwrt/package/feeds
+        key: feeds-${{ env.REPO_BRANCH }}-${{ hashFiles('**/feeds.conf.default') }}-${{ github.run_number }}
+        restore-keys: |
+          feeds-${{ env.REPO_BRANCH }}-${{ hashFiles('**/feeds.conf.default') }}-
+          feeds-${{ env.REPO_BRANCH }}-
+
     - name: Update and Install Package Feeds
       working-directory: ${{ runner.workspace }}/immortalwrt
       run: |
@@ -147,6 +164,70 @@ jobs:
         [ -n "$REPO_BRANCH" ] && sed -i \
           -e 's|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO="https://downloads.immortalwrt.org/releases/'"$REPO_BRANCH"'"|g' \
           .config
+
+    - name: Generate Cache Keys
+      if: inputs.enable_cache
+      id: cache-keys
+      working-directory: ${{ runner.workspace }}/immortalwrt
+      run: |
+        # Generate hash for downloads cache (based on feeds and config)
+        FEEDS_HASH=$(cat feeds.conf.default | sha256sum | cut -d' ' -f1 | cut -c1-8)
+        CONFIG_HASH=$(cat .config | grep "^CONFIG_PACKAGE" | sha256sum | cut -d' ' -f1 | cut -c1-8)
+        echo "dl-key=dl-${{ env.REPO_BRANCH }}-${FEEDS_HASH}-${CONFIG_HASH}" >> $GITHUB_OUTPUT
+        echo "dl-restore=dl-${{ env.REPO_BRANCH }}-${FEEDS_HASH}-" >> $GITHUB_OUTPUT
+        echo "dl-restore-branch=dl-${{ env.REPO_BRANCH }}-" >> $GITHUB_OUTPUT
+
+        # Generate hash for toolchain cache (based on target)
+        TARGET_HASH=$(cat .config | grep "^CONFIG_TARGET" | sha256sum | cut -d' ' -f1 | cut -c1-8)
+        echo "toolchain-key=toolchain-${{ env.REPO_BRANCH }}-${TARGET_HASH}" >> $GITHUB_OUTPUT
+        echo "toolchain-restore=toolchain-${{ env.REPO_BRANCH }}-" >> $GITHUB_OUTPUT
+
+    - name: Cache Downloads
+      if: inputs.enable_cache
+      id: cache-dl
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.workspace }}/immortalwrt/dl
+        key: ${{ steps.cache-keys.outputs.dl-key }}
+        restore-keys: |
+          ${{ steps.cache-keys.outputs.dl-restore }}
+          ${{ steps.cache-keys.outputs.dl-restore-branch }}
+          dl-
+
+    - name: Cache Toolchain
+      if: inputs.enable_cache
+      id: cache-toolchain
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ runner.workspace }}/immortalwrt/staging_dir/toolchain-*
+          ${{ runner.workspace }}/immortalwrt/build_dir/toolchain-*
+        key: ${{ steps.cache-keys.outputs.toolchain-key }}
+        restore-keys: |
+          ${{ steps.cache-keys.outputs.toolchain-restore }}
+          toolchain-
+
+    - name: Cache Statistics
+      if: inputs.enable_cache
+      run: |
+        echo "### 📊 Cache Status" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Cache Layer | Status | Key |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------------|--------|-----|" >> $GITHUB_STEP_SUMMARY
+
+        DL_STATUS="${{ steps.cache-dl.outputs.cache-hit == 'true' && '✅ Hit' || '❌ Miss' }}"
+        echo "| Downloads (dl/) | $DL_STATUS | \`${{ steps.cache-keys.outputs.dl-key }}\` |" >> $GITHUB_STEP_SUMMARY
+
+        TC_STATUS="${{ steps.cache-toolchain.outputs.cache-hit == 'true' && '✅ Hit' || '❌ Miss' }}"
+        echo "| Toolchain | $TC_STATUS | \`${{ steps.cache-keys.outputs.toolchain-key }}\` |" >> $GITHUB_STEP_SUMMARY
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ steps.cache-dl.outputs.cache-hit }}" == "true" ]; then
+          echo "⚡ Downloads cache hit! Skipping package downloads (~5-10 min saved)" >> $GITHUB_STEP_SUMMARY
+        fi
+        if [ "${{ steps.cache-toolchain.outputs.cache-hit }}" == "true" ]; then
+          echo "⚡ Toolchain cache hit! Skipping toolchain compilation (~15-30 min saved)" >> $GITHUB_STEP_SUMMARY
+        fi
 
     - name: Download Required Packages
       working-directory: ${{ runner.workspace }}/immortalwrt
