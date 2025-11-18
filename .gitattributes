@@ -1,0 +1,56 @@
+# Git attributes for BananaWRT
+# https://git-scm.com/docs/gitattributes
+
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Shell scripts
+*.sh text eol=lf
+
+# Python scripts
+*.py text eol=lf
+
+# YAML files
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Markdown files
+*.md text eol=lf
+
+# Config files
+*.config text eol=lf
+*.conf text eol=lf
+
+# Device tree source files
+*.dts text eol=lf
+*.dtsi text eol=lf
+
+# C source files
+*.c text eol=lf
+*.h text eol=lf
+
+# Binary files
+*.bin binary
+*.fip binary
+*.itb binary
+*.ipk binary
+*.img binary
+
+# Archive files
+*.tar binary
+*.gz binary
+*.xz binary
+*.zip binary
+
+# Image files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+
+# Git files
+.gitattributes export-ignore
+.gitignore export-ignore
+.github export-ignore

@@ -1,5 +1,6 @@
-
 #!/bin/bash
+set -euo pipefail
+
 #
 # File name: metadata-generator.sh
 # Description: Script to inject BananaWRT metadata into the build
@@ -14,7 +15,7 @@ source "$GITHUB_WORKSPACE/.github/scripts/functions/formatter.sh"
 
 # Check if RELEASE_DATE is set
 if [ -z "$RELEASE_DATE" ]; then
-    echo "Error: RELEASE_TAG is not set!"
+    error "RELEASE_DATE is not set!"
     exit 1
 fi
 

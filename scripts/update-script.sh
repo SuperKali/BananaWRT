@@ -131,6 +131,13 @@ if [ "$MODE" = "fota" ]; then
     echo -e "\033[1;35mSelect the release number to install (default 1):\033[0m"
     read -r selection
     [ -z "$selection" ] && selection=1
+
+    # Validate selection is a number between 1-4
+    if ! [[ "$selection" =~ ^[1-4]$ ]]; then
+        log_error "Invalid selection. Must be between 1-4."
+        exit 1
+    fi
+
     index=$((selection - 1))
     SELECTED_VERSION=$(echo "$RELEASES_JSON" | jq -r ".[$index].tag_name")
     if [ -z "$SELECTED_VERSION" ] || [ "$SELECTED_VERSION" = "null" ]; then
@@ -148,6 +155,12 @@ elif [ "$MODE" = "ota" ]; then
     echo -e "\033[1;35mOTA Mode:\033[0m Enter the Firmware Version of the files in /tmp (e.g., 24.10.0 or 24.10.0-rc4):"
     read -r FIRMWARE_VERSION
     [ -z "$FIRMWARE_VERSION" ] && { log_error "Firmware Version not specified. Cannot continue."; exit 1; }
+
+    # Validate firmware version format (basic semver check)
+    if ! [[ "$FIRMWARE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+        log_error "Invalid firmware version format. Expected format: X.Y.Z or X.Y.Z-rcN"
+        exit 1
+    fi
 elif [ "$MODE" = "packages" ]; then
     command -v curl >/dev/null 2>&1 || { log_error "curl is not installed. Cannot continue."; exit 1; }
     command -v jq >/dev/null 2>&1 || { log_error "jq is not installed. Cannot continue."; exit 1; }
@@ -340,11 +353,31 @@ log_success "Write access enabled."
 flash_partition() {
     PARTITION="$1"
     IMAGE="$2"
+
     if [ "$DRY_RUN" -eq 1 ]; then
         log_info "DRY-RUN: Simulated erasing partition $PARTITION (dd if=/dev/zero ...)."
         log_info "DRY-RUN: Simulated flashing $IMAGE to $PARTITION (dd if=$IMAGE ...)."
         return 0
     fi
+
+    # Validate partition is a block device
+    if [ ! -b "$PARTITION" ]; then
+        log_error "Partition $PARTITION is not a valid block device."
+        exit 1
+    fi
+
+    # Validate image file exists
+    if [ ! -f "$IMAGE" ]; then
+        log_error "Image file $IMAGE does not exist."
+        exit 1
+    fi
+
+    # Check image file is not empty
+    if [ ! -s "$IMAGE" ]; then
+        log_error "Image file $IMAGE is empty."
+        exit 1
+    fi
+
     log_info "Erasing partition $PARTITION..."
     dd if=/dev/zero of="$PARTITION" bs=1M count=4
     [ $? -ne 0 ] && { log_error "Error erasing partition $PARTITION."; exit 1; }

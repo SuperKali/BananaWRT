@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
+
 #
 # File name: custom-repository.sh
 # Description: BananaWRT add custom repository

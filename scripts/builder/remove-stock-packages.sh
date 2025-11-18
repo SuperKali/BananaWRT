@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
+
 #
 # File name: remove-stock-packages.sh
 # Description: BananaWRT remove stock packages from upstream repository
@@ -28,8 +30,11 @@ check_and_remove "feeds/packages/net/quectel-cm"
 
 remove_with_glob() {
     pattern="$1"
+    shopt -s nullglob
     matches=( $pattern )
-    if [ ${#matches[@]} -gt 0 ]; then
+    shopt -u nullglob
+
+    if [ ${#matches[@]} -gt 0 ] && [ -e "${matches[0]}" ]; then
         echo "Removing files matching: $pattern"
         for file in "${matches[@]}"; do
             echo " - $file"

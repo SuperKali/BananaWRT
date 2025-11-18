@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 source "$GITHUB_WORKSPACE/.github/scripts/functions/formatter.sh"
 

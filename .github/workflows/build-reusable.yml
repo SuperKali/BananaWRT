@@ -1,0 +1,241 @@
+#
+# https://github.com/P3TERX/Actions-OpenWrt
+#
+# File: .github/workflows/build-reusable.yml
+# Description: Reusable workflow for building ImmortalWRT
+#
+# Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
+# Copyright (c) 2024-2025 SuperKali <hello@superkali.me>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+
+name: Reusable Build Workflow
+
+on:
+  workflow_call:
+    inputs:
+      release_type:
+        description: 'Release type (stable or nightly)'
+        required: true
+        type: string
+      repo_branch:
+        description: 'ImmortalWRT branch/tag to build'
+        required: true
+        type: string
+      config_file:
+        description: 'Path to config file'
+        required: true
+        type: string
+      upload_bin_dir:
+        description: 'Upload binary directory'
+        required: false
+        type: boolean
+        default: false
+      upload_package_dir:
+        description: 'Upload package directory'
+        required: false
+        type: boolean
+        default: true
+      upload_firmware:
+        description: 'Upload firmware files'
+        required: false
+        type: boolean
+        default: true
+      upload_release:
+        description: 'Create GitHub release'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      PERSONAL_ACCESS_TOKEN:
+        required: true
+
+env:
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
+  REPO_BRANCH: ${{ inputs.repo_branch }}
+  BANANAWRT_RELEASE: ${{ inputs.release_type }}
+  FEEDS_CONF: feeds.conf.default
+  CONFIG_FILE: ${{ inputs.config_file }}
+  REPO_SCRIPT: scripts/builder/custom-repository.sh
+  STOCK_PACKAGES: scripts/builder/remove-stock-packages.sh
+  UPLOAD_BIN_DIR: ${{ inputs.upload_bin_dir }}
+  UPLOAD_PACKAGE_DIR: ${{ inputs.upload_package_dir }}
+  UPLOAD_FIRMWARE: ${{ inputs.upload_firmware }}
+  UPLOAD_RELEASE: ${{ inputs.upload_release }}
+  TZ: Europe/Rome
+
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v5
+
+    - name: Set Up Build Environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        /bin/bash .github/scripts/setup-env.sh setup
+
+    - name: Set timezone on the host
+      run: sudo timedatectl set-timezone "$TZ" || echo "Failed to set timezone, proceeding anyway."
+
+    - name: Set Release data
+      run: |
+        echo "RELEASE_DATE=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_ENV
+
+    - name: Authenticate GitHub
+      env:
+        GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        echo "machine github.com login ${{ secrets.PERSONAL_ACCESS_TOKEN }}" > ~/.netrc
+        chmod 600 ~/.netrc
+
+    - name: Clone ImmortalWRT Repository
+      working-directory: ${{ runner.workspace }}
+      run: |
+        git clone $REPO_URL -b v"$REPO_BRANCH" immortalwrt
+
+    - name: Apply Custom Feeds Configuration
+      run: |
+        [ -e ${{ env.FEEDS_CONF }} ] && mv ${{ env.FEEDS_CONF }} ${{ runner.workspace }}/immortalwrt/feeds.conf.default
+        chmod +x ${{ env.REPO_SCRIPT }}
+        cd ${{ runner.workspace }}/immortalwrt
+        $GITHUB_WORKSPACE/${{ env.REPO_SCRIPT }}
+
+    - name: Apply Custom Patch Files
+      run: |
+        chmod +x scripts/utils/patch-manager.sh
+        cd ${{ runner.workspace }}/immortalwrt
+        $GITHUB_WORKSPACE/scripts/utils/patch-manager.sh ${{env.BANANAWRT_RELEASE}} ${{ runner.workspace }}/immortalwrt
+
+    - name: Update and Install Package Feeds
+      working-directory: ${{ runner.workspace }}/immortalwrt
+      run: |
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Apply Custom Configuration
+      run: |
+        [ -e files ] && mv files ${{ runner.workspace }}/immortalwrt/files
+        [ -e ${{ env.CONFIG_FILE }} ] && mv ${{ env.CONFIG_FILE }} ${{ runner.workspace }}/immortalwrt/.config
+        chmod +x ${{ env.STOCK_PACKAGES }}
+        cd ${{ runner.workspace }}/immortalwrt
+        $GITHUB_WORKSPACE/${{ env.STOCK_PACKAGES }}
+        ./scripts/feeds install -p additional_pack -a
+
+    - name: Generate BananaWRT Metadata
+      working-directory: ${{ runner.workspace }}/immortalwrt
+      env:
+        RELEASE_DATE: ${{ env.RELEASE_DATE }}
+        GITHUB_SHA: ${{ github.sha }}
+        GITHUB_REF: ${{ github.ref }}
+      run: |
+        chmod +x $GITHUB_WORKSPACE/scripts/utils/metadata-generator.sh
+        $GITHUB_WORKSPACE/scripts/utils/metadata-generator.sh
+
+    - name: Diffconfig with current configuration
+      working-directory: ${{ runner.workspace }}/immortalwrt
+      run: |
+        ./scripts/diffconfig.sh > diffconfig
+        curl https://downloads.immortalwrt.org/releases/$REPO_BRANCH/targets/mediatek/filogic/config.buildinfo
+        cat diffconfig >> config.buildinfo
+        mv config.buildinfo .config
+        [ -n "$REPO_BRANCH" ] && sed -i \
+          -e 's|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO="https://downloads.immortalwrt.org/releases/'"$REPO_BRANCH"'"|g' \
+          .config
+
+    - name: Download Required Packages
+      working-directory: ${{ runner.workspace }}/immortalwrt
+      run: |
+        make defconfig
+        make download -j$(nproc)
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+
+    - name: Build Firmware
+      working-directory: ${{ runner.workspace }}/immortalwrt
+      run: |
+        make -j$(nproc) || make -j1 V=s
+        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+
+    - name: Check Disk Usage
+      run: df -hT
+
+    - name: Upload Binary Files
+      if: env.UPLOAD_BIN_DIR == 'true'
+      uses: actions/upload-artifact@v5
+      with:
+        name: BananaWRT_bin${{ env.RELEASE_DATE }}
+        path: ${{ runner.workspace }}/immortalwrt/bin
+
+    - name: Upload Custom Packages
+      if: env.UPLOAD_PACKAGE_DIR == 'true'
+      uses: actions/upload-artifact@v5
+      with:
+        name: BananaWRT_packages${{ env.RELEASE_DATE }}
+        path: ${{ runner.workspace }}/immortalwrt/bin/packages/*/additional_pack/*.ipk
+
+    - name: Prepare Firmware for Upload
+      run: |
+        cd ${{ runner.workspace }}/immortalwrt/bin/targets/*/*
+        rm -rf packages
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+
+    - name: Upload Firmware Files
+      if: env.UPLOAD_FIRMWARE == 'true'
+      uses: actions/upload-artifact@v5
+      with:
+        name: BananaWRT_firmware${{ env.RELEASE_DATE }}
+        path: ${{ env.FIRMWARE }}
+
+    - name: Create Release Tag
+      if: env.UPLOAD_RELEASE == 'true'
+      run: |
+        kernel_version=$(find ${{ runner.workspace }}/immortalwrt/build_dir/target-*/linux-*/ -type d -regex '.*/linux-[0-9]+\.[0-9]+.*' | head -n 1 | sed -E 's|.*/linux-||')
+        target_devices=$(grep '^CONFIG_TARGET.*DEVICE.*=y' ${{ runner.workspace }}/immortalwrt/.config | sed -r 's/.*DEVICE_(.*)=y/\1/')
+
+        if [ ${{ env.BANANAWRT_RELEASE }} = "stable" ]; then
+            release_type='Stable'
+        else
+            release_type='Nightly'
+        fi
+
+        sed -e "s|{{BANANAWRT_KERNEL}}|${kernel_version}|g" \
+            -e "s|{{RELEASE_TYPE}}|${release_type}|g" \
+            -e "s|{{BANANAWRT_VERSION}}|${REPO_BRANCH}|g" \
+            -e "s|{{RELEASE_DATE}}|$(date '+%Y-%m-%d %H:%M:%S')|g" \
+            -e "s|{{TARGET_DEVICES}}|${target_devices}|g" \
+            templates/release-notes-template.md > release.txt
+
+    - name: Publish Firmware Release
+      if: env.UPLOAD_RELEASE == 'true'
+      uses: softprops/action-gh-release@v2.4.2
+      with:
+        tag_name: ${{ env.RELEASE_DATE }}
+        body_path: release.txt
+        files: ${{ env.FIRMWARE }}/*
+
+    - name: Remove old Releases
+      uses: dev-drprasad/delete-older-releases@v0.3.4
+      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      with:
+        keep_latest: 7
+        delete_tags: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Delete workflow runs
+      uses: Mattraks/delete-workflow-runs@v2.1.0
+      with:
+        retain_days: 0
+        keep_minimum_runs: 7
+
+    - name: Cleanup Workspace
+      if: always()
+      run: |
+        sudo rm -rf ~/.netrc
+        sudo rm -rf "${{ runner.workspace }}/immortalwrt"
