@@ -3,6 +3,22 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-12-05]
+
+### 🧩 Additional Packages
+
+- 🗑️ atc-fib-fm350_gl: remove sms handling to avoid conflicts by @SuperKali  
+- 🐛 `luci-app-sms`-tool-js: fix sms display and enable message merging by @SuperKali  
+- 🔼 build(deps): bump actions/checkout from 5.0.0 to 6.0.0 (#16) by @dependabot[bot]  
+
+### 🍌 BananaWRT Core
+
+- 🔼 build(deps): bump actions/checkout from 5 to 6 (#111) by @dependabot[bot]  
+- 🔄 chore: update bpi-r3-mini dts files pulled from upstream by @SuperKali  
+- 🔼 build(deps): bump softprops/action-gh-release from 2.4.1 to 2.4.2 (#109) by @dependabot[bot]  
+
+---
+
 ## [2025-11-03]
 
 ### 🧩 Additional Packages
@@ -392,4 +408,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **November 03, 2025**
+📅 Release date: **December 05, 2025**
