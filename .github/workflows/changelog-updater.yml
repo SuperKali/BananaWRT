@@ -76,7 +76,7 @@ jobs:
 
     - name: Create Pull Request
       if: steps.check-changes.outputs.HAS_CHANGES == 'true'
-      uses: peter-evans/create-pull-request@v7
+      uses: peter-evans/create-pull-request@v8
       with:
         token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         branch: update-changelog-${{ env.RELEASE_DATE }}
