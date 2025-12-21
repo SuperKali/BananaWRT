@@ -3,6 +3,26 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2025-12-21]
+
+### 🧩 Additional Packages
+
+- 🔼 build(deps): bump actions/upload-artifact from 5.0.0 to 6.0.0 (#19) by @dependabot[bot]  
+- 🔼 build(deps): bump actions/download-artifact from 6.0.0 to 7.0.0 (#18) by @dependabot[bot]  
+- 🔼 build(deps): bump actions/checkout from 6.0.0 to 6.0.1 (#17) by @dependabot[bot]  
+
+### 🍌 BananaWRT Core
+
+- ⏪ revert "dts: export gpio 20 for m.2 5g modem power control" by @SuperKali  
+- 🔼 build(deps): bump actions/upload-artifact from 5 to 6 (#117) by @dependabot[bot]  
+- 🔼 build(deps): bump peter-evans/create-pull-request from 7 to 8 (#116) by @dependabot[bot]  
+- 🔼 build(deps): bump actions/download-artifact from 6 to 7 (#115) by @dependabot[bot]  
+- 🛠️ dts: export gpio 20 for m.2 5g modem power control by @SuperKali  
+- 🔼 build(deps): bump softprops/action-gh-release from 2.4.2 to 2.5.0 (#113) by @dependabot[bot]  
+- 🔄 docs: update changelog for 2025-12-05 (#114) by @SuperKali  
+
+---
+
 ## [2025-12-05]
 
 ### 🧩 Additional Packages
@@ -408,4 +428,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **December 05, 2025**
+📅 Release date: **December 21, 2025**
