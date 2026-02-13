@@ -220,24 +220,47 @@ jobs:
     
     - name: Copy New Artifacts and Update Index
       run: |
+        echo "📁 Checking downloaded artifact structure:"
+        find all-artifacts -type d | head -20
+        echo ""
+        echo "📁 Checking for bananawrt/sdk directories:"
+        for d in all-artifacts/sdk-*/; do
+          echo "Contents of $d:"
+          ls -la "$d" 2>/dev/null || echo "  (not found or empty)"
+        done
+        echo ""
+
         for artifact_dir in all-artifacts/sdk-*; do
-          if [ -d "$artifact_dir/bananawrt/sdk" ]; then
-            echo "Copying from: $artifact_dir"
-            rsync -av "$artifact_dir/bananawrt/sdk/" ftp-upload/bananawrt/sdk/
+          if [ -d "$artifact_dir" ]; then
+            echo "Processing artifact: $artifact_dir"
+            # Debug: show what's inside
+            find "$artifact_dir" -type d | head -10
+
+            # Try the expected path first
+            if [ -d "$artifact_dir/bananawrt/sdk" ]; then
+              echo "Copying from expected path: $artifact_dir/bananawrt/sdk"
+              rsync -av "$artifact_dir/bananawrt/sdk/" ftp-upload/bananawrt/sdk/
+            # Fallback: check if files are directly in artifact root with bananawrt subdirectory
+            elif [ -d "$artifact_dir/bananawrt" ]; then
+              echo "Copying from fallback path: $artifact_dir/bananawrt"
+              rsync -av "$artifact_dir/bananawrt/" ftp-upload/bananawrt/
+            else
+              echo "Warning: No bananawrt directory found in $artifact_dir"
+            fi
           fi
         done
-        
+
         VERSIONS=$(echo '${{ needs.prepare.outputs.matrix }}' | jq -r '.version[]')
         ARCHS=$(echo '${{ needs.prepare.outputs.matrix }}' | jq -r '.arch[]')
         BASE_URL="https://repo.superkali.me/bananawrt/sdk"
-        
+
         MASTER_INDEX="ftp-upload/bananawrt/sdk/sdk-master-index.json"
-        
+
         for VERSION in $VERSIONS; do
           jq --arg version "$VERSION" \
              '.versions[$version] //= {"architectures": {}}' \
              "$MASTER_INDEX" > temp.json && mv temp.json "$MASTER_INDEX"
-          
+
           for ARCH in $ARCHS; do
             jq --arg version "$VERSION" \
                --arg arch "$ARCH" \
@@ -249,6 +272,17 @@ jobs:
                }' "$MASTER_INDEX" > temp.json && mv temp.json "$MASTER_INDEX"
           done
         done
+
+        # Verify files exist before FTP upload
+        echo ""
+        echo "📁 Files prepared for FTP upload:"
+        find ftp-upload -type f -exec ls -lh {} \;
+        TOTAL_SIZE=$(du -sh ftp-upload | cut -f1)
+        echo "Total size to upload: $TOTAL_SIZE"
+
+        if [ "$TOTAL_SIZE" = "12K" ] || [ "$TOTAL_SIZE" = "8K" ] || [ "$TOTAL_SIZE" = "4K" ]; then
+          echo "::warning::Upload directory is very small - SDK files may be missing!"
+        fi
 
     - name: Upload All Files to FTP
       run: |
