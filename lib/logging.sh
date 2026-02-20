@@ -31,8 +31,11 @@ declare -g BANANAWRT_LOG_LEVEL="${BANANAWRT_LOG_LEVEL:-$LOG_LEVEL_DEBUG}"
 _detect_color_support() {
     local colors=0
 
+    # Check for CI environments that support colors (GitHub Actions, GitLab CI, etc.)
+    if [[ -n "${GITHUB_ACTIONS:-}" ]] || [[ -n "${GITLAB_CI:-}" ]] || [[ -n "${FORCE_COLOR:-}" ]]; then
+        colors=256
     # Check if stdout is a terminal
-    if [[ -t 1 ]]; then
+    elif [[ -t 1 ]]; then
         # Check for COLORTERM variable (true color support)
         if [[ "${COLORTERM:-}" =~ (truecolor|24bit) ]]; then
             colors=16777216

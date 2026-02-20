@@ -107,7 +107,7 @@ apply_patches() {
         if [[ ! -d "$dest_parent" ]]; then
             if ! mkdir -p "$dest_parent"; then
                 log_error "Failed to create directory: $dest_parent"
-                ((failed_count++))
+                failed_count=$((failed_count + 1))
                 continue
             fi
         fi
@@ -115,10 +115,10 @@ apply_patches() {
         # Copy the file
         if cp "$file" "$dest_file"; then
             log_info "Applied: $rel_path"
-            ((applied_count++))
+            applied_count=$((applied_count + 1))
         else
             log_error "Failed to apply: $rel_path"
-            ((failed_count++))
+            failed_count=$((failed_count + 1))
         fi
     done < <(find "$patch_dir" -type f)
 
