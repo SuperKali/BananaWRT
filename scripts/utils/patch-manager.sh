@@ -1,134 +1,184 @@
 #!/bin/bash
+#
+# patch-manager.sh - Apply patches to ImmortalWRT source tree
+#
+# Usage: patch-manager.sh [RELEASE_TYPE] [IMMORTALWRT_DIR]
+#
+# Arguments:
+#   RELEASE_TYPE     Release type (stable, nightly) - default: stable
+#   IMMORTALWRT_DIR  Path to ImmortalWRT directory - default: current directory
+#
+# Environment variables:
+#   GITHUB_WORKSPACE  Required when running in GitHub Actions
+#
 
-source "$GITHUB_WORKSPACE/.github/scripts/functions/formatter.sh"
+set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BANANAWRT_ROOT="${BANANAWRT_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
+
+# Source libraries
+source "${BANANAWRT_ROOT}/lib/common.sh"
+source "${BANANAWRT_ROOT}/lib/logging.sh"
+source "${BANANAWRT_ROOT}/lib/validation.sh"
+
+# Default values
 RELEASE_TYPE="${1:-stable}"
-PATCH_BASE_DIR="$GITHUB_WORKSPACE/patch"
-IMMORTALWRT_DIR="${2:-$PWD}"
+IMMORTALWRT_DIR="${2:-${PWD}}"
 
+# In CI environment, use GITHUB_WORKSPACE
+if [[ -n "${GITHUB_WORKSPACE:-}" ]]; then
+    PATCH_BASE_DIR="${GITHUB_WORKSPACE}/patch"
+else
+    PATCH_BASE_DIR="${BANANAWRT_ROOT}/patch"
+fi
+
+# Show help
+show_help() {
+    cat << EOF
+Usage: $(get_script_name) [RELEASE_TYPE] [IMMORTALWRT_DIR]
+
+Apply BananaWRT patches to ImmortalWRT source tree.
+
+Arguments:
+  RELEASE_TYPE     Release type (stable, nightly) - default: stable
+  IMMORTALWRT_DIR  Path to ImmortalWRT directory - default: current directory
+
+Options:
+  -h, --help       Show this help message
+
+Examples:
+  $(get_script_name) stable /path/to/immortalwrt
+  $(get_script_name) nightly
+EOF
+    exit 0
+}
+
+# Check for help flag
+case "${1:-}" in
+    -h|--help)
+        show_help
+        ;;
+esac
+
+# Apply patches from source directory to destination
+# Usage: apply_patches patch_type dest_dir description
 apply_patches() {
     local patch_type="$1"
-    local source_dir="$2"  
-    local dest_dir="$3"
-    local description="$4"
-    
-    local patch_dir="$PATCH_BASE_DIR/$patch_type/$RELEASE_TYPE"
-    
-    if [ ! -d "$patch_dir" ]; then
-        info "No $patch_type patches found for $RELEASE_TYPE release type - skipping"
+    local dest_dir="$2"
+    local description="$3"
+
+    local patch_dir="${PATCH_BASE_DIR}/${patch_type}/${RELEASE_TYPE}"
+
+    # Check if patch directory exists
+    if [[ ! -d "$patch_dir" ]]; then
+        log_info "No $patch_type patches found for $RELEASE_TYPE release type - skipping"
         return 0
     fi
-    
-    local file_count=$(find "$patch_dir" -type f | wc -l)
-    if [ "$file_count" -eq 0 ]; then
-        info "No files found in $patch_type patches directory - skipping"
+
+    # Count files to apply
+    local file_count
+    file_count=$(find "$patch_dir" -type f | wc -l)
+
+    if [[ "$file_count" -eq 0 ]]; then
+        log_info "No files found in $patch_type patches directory - skipping"
         return 0
     fi
-    
-    section "Applying $description ($file_count files)"
-    
-    if [ ! -d "$dest_dir" ]; then
-        error "Destination directory does not exist: $dest_dir"
+
+    log_section "Applying $description ($file_count files)"
+
+    # Validate destination directory
+    if [[ ! -d "$dest_dir" ]]; then
+        log_error "Destination directory does not exist: $dest_dir"
         return 1
     fi
-    
+
     local applied_count=0
     local failed_count=0
-    
+
+    # Process each file
     while IFS= read -r file; do
         local rel_path="${file#$patch_dir/}"
-        local dest_file="$dest_dir/$rel_path"
-        local dest_parent=$(dirname "$dest_file")
-        
-        if [ ! -d "$dest_parent" ]; then
-            mkdir -p "$dest_parent"
-            if [ $? -ne 0 ]; then
-                error "Failed to create directory: $dest_parent"
+        local dest_file="${dest_dir}/${rel_path}"
+        local dest_parent
+        dest_parent=$(dirname "$dest_file")
+
+        # Create parent directory if needed
+        if [[ ! -d "$dest_parent" ]]; then
+            if ! mkdir -p "$dest_parent"; then
+                log_error "Failed to create directory: $dest_parent"
                 ((failed_count++))
                 continue
             fi
         fi
-        
-        cp "$file" "$dest_file"
-        if [ $? -eq 0 ]; then
-            info "Applied: $rel_path"
+
+        # Copy the file
+        if cp "$file" "$dest_file"; then
+            log_info "Applied: $rel_path"
             ((applied_count++))
         else
-            error "Failed to apply: $rel_path"
+            log_error "Failed to apply: $rel_path"
             ((failed_count++))
         fi
     done < <(find "$patch_dir" -type f)
-    
-    if [ "$failed_count" -eq 0 ]; then
-        success "$description applied successfully ($applied_count files)"
+
+    # Report results
+    if [[ "$failed_count" -eq 0 ]]; then
+        log_success "$description applied successfully ($applied_count files)"
     else
-        warning "$description completed with $failed_count failures ($applied_count successful)"
+        log_warning "$description completed with $failed_count failures ($applied_count successful)"
     fi
-    
-    return $failed_count
+
+    return "$failed_count"
 }
 
+# Validate the environment
 validate_environment() {
-    if [ -z "$RELEASE_TYPE" ]; then
-        error "RELEASE_TYPE not specified"
+    if ! validate_release_type "$RELEASE_TYPE"; then
         return 1
     fi
-    
-    if [ ! -d "$IMMORTALWRT_DIR" ]; then
-        error "ImmortalWRT directory does not exist: $IMMORTALWRT_DIR"
+
+    if ! require_directory "$IMMORTALWRT_DIR" "ImmortalWRT directory does not exist: $IMMORTALWRT_DIR"; then
         return 1
     fi
-    
-    if [ ! -d "$PATCH_BASE_DIR" ]; then
-        error "Patch base directory does not exist: $PATCH_BASE_DIR"
+
+    if ! require_directory "$PATCH_BASE_DIR" "Patch base directory does not exist: $PATCH_BASE_DIR"; then
         return 1
     fi
-    
+
     return 0
 }
 
+# Main function
 main() {
-    section "BananaWRT Patch Manager"
-    info "Release Type: $RELEASE_TYPE"
-    info "ImmortalWRT Directory: $IMMORTALWRT_DIR"
-    info "Patch Base Directory: $PATCH_BASE_DIR"
-    
+    log_section "BananaWRT Patch Manager"
+    log_info "Release Type: $RELEASE_TYPE"
+    log_info "ImmortalWRT Directory: $IMMORTALWRT_DIR"
+    log_info "Patch Base Directory: $PATCH_BASE_DIR"
+
     if ! validate_environment; then
-        exit 1
+        exit $EXIT_INVALID_ARGS
     fi
-    
+
     local total_failed=0
-    
-    apply_patches "kernel/dts" "" "$IMMORTALWRT_DIR/target/linux/mediatek/dts" "Device Tree Source patches"
+
+    # Apply DTS patches
+    apply_patches "kernel/dts" "${IMMORTALWRT_DIR}/target/linux/mediatek/dts" "Device Tree Source patches"
     total_failed=$((total_failed + $?))
-    
-    apply_patches "kernel/files" "" "$IMMORTALWRT_DIR/target/linux/mediatek/files" "Kernel files patches"
+
+    # Apply kernel files patches
+    apply_patches "kernel/files" "${IMMORTALWRT_DIR}/target/linux/mediatek/files" "Kernel files patches"
     total_failed=$((total_failed + $?))
-    
+
     echo ""
-    if [ "$total_failed" -eq 0 ]; then
-        success "All patches applied successfully!"
-        return 0
+
+    if [[ "$total_failed" -eq 0 ]]; then
+        log_success "All patches applied successfully!"
+        exit $EXIT_SUCCESS
     else
-        error "Patch application completed with $total_failed total failures"
-        return 1
+        log_error "Patch application completed with $total_failed total failures"
+        exit $EXIT_FAILURE
     fi
 }
-
-case "${1:-}" in
-    -h|--help)
-        echo "Usage: $0 [RELEASE_TYPE] [IMMORTALWRT_DIR]"
-        echo ""
-        echo "Arguments:"
-        echo "  RELEASE_TYPE     Release type (stable, nightly) - default: stable"
-        echo "  IMMORTALWRT_DIR  Path to ImmortalWRT directory - default: current directory"
-        echo ""
-        echo "Examples:"
-        echo "  $0 stable /path/to/immortalwrt"
-        echo "  $0 nightly"
-        echo ""
-        exit 0
-        ;;
-esac
 
 main "$@"
