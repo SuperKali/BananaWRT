@@ -19,7 +19,7 @@ on:
 
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
-  REPO_BRANCH: 24.10.4
+  REPO_BRANCH: 24.10.5
   BANANAWRT_RELEASE: stable
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: config/stable/.config

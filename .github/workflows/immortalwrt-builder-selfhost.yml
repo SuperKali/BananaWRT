@@ -38,7 +38,7 @@ on:
         description: 'Write the version of ImmortalWRT to use'
         type: string
         required: true
-        default: '24.10.4'
+        default: '24.10.5'
       nproc:
         description: 'Specify the number of threads to use it on the compiler'
         required: false
