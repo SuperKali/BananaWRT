@@ -128,11 +128,11 @@ is_package_installed() {
 
 # Get packages that need action
 get_packages_for_action() {
-    local -n packages=$1
+    local -n pkg_ref=$1
     local action="$2"
     local result=()
 
-    for pkg in "${packages[@]}"; do
+    for pkg in "${pkg_ref[@]}"; do
         if [[ "$action" == "setup" ]]; then
             if ! is_package_installed "$pkg"; then
                 result+=("$pkg")
