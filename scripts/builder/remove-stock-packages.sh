@@ -66,8 +66,8 @@ declare -A PACKAGE_PATHS=(
     ["luci-app-modemband"]="package/feeds/luci/luci-app-modemband"
     ["modemband"]="package/feeds/packages/modemband"
     ["luci-app-3ginfo-lite"]="package/feeds/luci/luci-app-3ginfo-lite"
-    ["luci-proto-quectel"]="feeds/luci/protocols/luci-proto-quectel"
-    ["quectel-cm"]="feeds/packages/net/quectel-cm"
+    ["luci-proto-quectel"]="package/feeds/luci/protocols/luci-proto-quectel"
+    ["quectel-cm"]="package/feeds/packages/net/quectel-cm"
 )
 
 # Remove a single package directory
