@@ -16,9 +16,30 @@ on:
     - cron: 0 0 1 * *
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+    - uses: actions/checkout@v6
+    - id: read
+      run: |
+        # Find the version line that has stable track
+        for vf in config/*/version.json; do
+          if jq -e '.tracks | index("stable")' "$vf" > /dev/null 2>&1; then
+            VERSION=$(jq -r '.branch' "$vf")
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Resolved stable version: $VERSION from $vf"
+            exit 0
+          fi
+        done
+        echo "::error::No version with stable track found"
+        exit 1
+
   build:
+    needs: resolve
     uses: ./.github/workflows/immortalwrt-builder.yml
     with:
-      immortalwrt_version: '24.10.5'
+      immortalwrt_version: ${{ needs.resolve.outputs.version }}
       release_type: stable
     secrets: inherit

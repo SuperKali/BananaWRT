@@ -15,8 +15,6 @@ on:
     branches: [main]
     paths:
       - 'config/*/version.json'
-      - '.github/workflows/immortalwrt-builder-stable.yml'
-      - '.github/workflows/immortalwrt-builder-nightly.yml'
 
 jobs:
   trigger-sdk:
@@ -27,27 +25,20 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
 
-    - name: Detect bumped versions
-      id: detect
-      run: |
-        # Read all active versions from version.json files
-        VERSIONS=""
-        for vf in config/*/version.json; do
-          branch=$(jq -r '.branch' "$vf")
-          status=$(jq -r '.status' "$vf")
-          if [ "$status" = "active" ] && [ -n "$branch" ]; then
-            [ -n "$VERSIONS" ] && VERSIONS="${VERSIONS},"
-            VERSIONS="${VERSIONS}${branch}"
-          fi
-        done
-
-        echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
-        echo "Detected versions to build: $VERSIONS"
-
-    - name: Trigger SDK Matrix Builder
+    - name: Detect bumped tracks and trigger SDK builds
       env:
         GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
       run: |
-        gh workflow run immortalwrt-sdk-matrix-builder.yml \
-          -f architecture=ALL \
-          -f versions="${{ steps.detect.outputs.versions }}"
+        # Trigger SDK build for each active track that was changed
+        for vf in config/*/version.json; do
+          status=$(jq -r '.status' "$vf")
+          [ "$status" != "active" ] && continue
+
+          tracks=$(jq -r '.tracks[]' "$vf")
+          for track in $tracks; do
+            echo "Triggering SDK build for track: $track"
+            gh workflow run immortalwrt-sdk-matrix-builder.yml \
+              -f release_type="$track" \
+              -f architecture=ALL
+          done
+        done

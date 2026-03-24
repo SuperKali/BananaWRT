@@ -13,6 +13,14 @@ on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
+      release_type:
+        description: 'Select the release type'
+        required: true
+        type: choice
+        options:
+          - stable
+          - nightly
+        default: stable
       architecture:
         description: 'Select architecture to build for'
         required: true
@@ -22,12 +30,8 @@ on:
           - X64
           - ARM64
         default: 'ALL'
-      versions:
-        description: 'ImmortalWRT versions (comma-separated)'
-        required: true
-        default: '24.10.0,24.10.1,24.10.2,24.10.3,24.10.4,24.10.5'
       nproc:
-        description: 'Specify the number of threads to use it on the compiler'
+        description: 'Specify the number of threads to use on the compiler'
         required: false
         default: ''
 
@@ -46,18 +50,36 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Set up build matrix
+      - uses: actions/checkout@v6
+
+      - name: Resolve version and set up build matrix
         id: set-matrix
         run: |
-          VERSIONS="${{ github.event.inputs.versions }}"
-          VERSION_ARRAY=$(echo $VERSIONS | tr ',' '\n' | jq -R . | jq -s .)
-          
+          TRACK="${{ github.event.inputs.release_type }}"
+
+          # Find the version line that has the selected track
+          VERSION=""
+          for vf in config/*/version.json; do
+            if jq -e --arg t "$TRACK" '.tracks | index($t)' "$vf" > /dev/null 2>&1; then
+              VERSION=$(jq -r '.branch' "$vf")
+              echo "Resolved $TRACK version: $VERSION from $vf"
+              break
+            fi
+          done
+
+          if [ -z "$VERSION" ]; then
+            echo "::error::No version found with track '$TRACK'"
+            exit 1
+          fi
+
+          VERSION_ARRAY=$(echo "$VERSION" | jq -R . | jq -s .)
+
           if [ "${{ github.event.inputs.architecture }}" = "ALL" ]; then
             ARCHS='["X64", "ARM64"]'
           else
             ARCHS='["${{ github.event.inputs.architecture }}"]'
           fi
-          
+
           MATRIX="{\"version\":$VERSION_ARRAY,\"arch\":$ARCHS}"
           echo "Generated matrix: $MATRIX"
           echo "matrix=$(echo "$MATRIX" | jq -c .)" >> "$GITHUB_OUTPUT"
