@@ -58,7 +58,7 @@ env:
 
 jobs:
   build:
-    runs-on: [self-hosted, "${{ inputs.architecture }}"]
+    runs-on: ${{ inputs.architecture == 'X64' && 'ubuntu-latest' || fromJSON('["self-hosted","ARM64"]') }}
     steps:
     - name: Cleanup previous build
       run: |

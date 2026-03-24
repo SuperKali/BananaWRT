@@ -86,7 +86,7 @@ jobs:
 
   build-sdk:
     needs: prepare
-    runs-on: [self-hosted, "${{ matrix.arch }}"]
+    runs-on: ${{ matrix.arch == 'X64' && 'ubuntu-latest' || fromJSON('["self-hosted","ARM64"]') }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
