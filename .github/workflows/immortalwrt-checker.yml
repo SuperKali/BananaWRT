@@ -1,5 +1,5 @@
 # File: .github/workflows/immortalwrt-checker.yml
-# Description: Bump ImmortalWRT Version using GitHub Actions
+# Description: Bump ImmortalWRT Version using GitHub Actions (Multi-Version)
 #
 # Copyright (c) 2024-2025 SuperKali <hello@superkali.me>
 #
@@ -16,6 +16,17 @@ on:
 jobs:
   check-and-bump:
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - version_line: v24.10
+            tag_prefix: v24.10
+            caller_workflow: .github/workflows/immortalwrt-builder-stable.yml
+            config_path: config/v24.10/stable/.config
+          - version_line: v25.12
+            tag_prefix: v25.12
+            caller_workflow: .github/workflows/immortalwrt-builder-nightly.yml
+            config_path: config/v25.12/nightly/.config
 
     steps:
     - name: Checkout the repository
@@ -26,95 +37,123 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y jq
 
-    - name: Get the latest ImmortalWRT version
+    - name: Read version config
+      run: |
+        VERSION_JSON="config/${{ matrix.version_line }}/version.json"
+        TRACKS=$(jq -r '.tracks[]' "$VERSION_JSON")
+        # Stable tracks skip RC/pre-release tags, nightly tracks accept them
+        if echo "$TRACKS" | grep -q "stable"; then
+          echo "FILTER_RC=true" >> $GITHUB_ENV
+        else
+          echo "FILTER_RC=false" >> $GITHUB_ENV
+        fi
+
+    - name: Get the latest ImmortalWRT version for ${{ matrix.version_line }}
       id: get_latest_version
       run: |
-        latest_version=$(curl -s https://api.github.com/repos/immortalwrt/immortalwrt/tags | jq -r '.[0].name' | sed 's/^v//')
-        if [ -z "$latest_version" ]; then
-          echo "Error: Failed to fetch the latest version." >&2
-          exit 1
-        fi
-        echo "latest_version=$latest_version" >> $GITHUB_ENV
-        echo "Latest version: $latest_version"
+        ALL_TAGS=$(curl -s https://api.github.com/repos/immortalwrt/immortalwrt/tags)
 
-    - name: Check files for REPO_BRANCH updates
-      id: check_repo_branch_files
-      run: |
-        if [ -z "${{ env.latest_version }}" ]; then
-          echo "Error: latest_version is not set." >&2
-          exit 1
-        fi
-        files_to_update=()
-        for file in .github/workflows/immortalwrt-*-nightly.yml; do
-          if [ -f "$file" ]; then
-            file_version=$(grep -m 1 'REPO_BRANCH:' "$file" | awk -F': ' '{if (NF > 1) {gsub(/^ +| +$/, "", $2); print $2}}')
-            if [ "$file_version" != "${{ env.latest_version }}" ]; then
-              echo "File $file needs update: $file_version -> ${{ env.latest_version }}"
-              files_to_update+=("$file")
-            else
-              echo "File $file is up-to-date."
-            fi
-          else
-            echo "Warning: File $file does not exist."
-          fi
-        done
-
-        if [ ${#files_to_update[@]} -eq 0 ]; then
-          echo "No REPO_BRANCH updates needed."
-          echo "repo_branch_needs_update=false" >> $GITHUB_ENV
+        if [ "$FILTER_RC" = "true" ]; then
+          # Stable: only full releases (exclude -rc, -alpha, -beta)
+          latest_version=$(echo "$ALL_TAGS" | \
+            jq -r '[.[] | select(.name | startswith("${{ matrix.tag_prefix }}")) | select(.name | test("-rc|-alpha|-beta") | not) | .name] | first' | \
+            sed 's/^v//')
         else
-          echo "Files to update for REPO_BRANCH: ${files_to_update[@]}"
-          echo "repo_branch_needs_update=true" >> $GITHUB_ENV
-          echo "files_to_update=$(IFS=,; echo "${files_to_update[*]}")" >> $GITHUB_ENV
+          # Nightly: accept all tags including pre-releases
+          latest_version=$(echo "$ALL_TAGS" | \
+            jq -r '[.[] | select(.name | startswith("${{ matrix.tag_prefix }}")) | .name] | first' | \
+            sed 's/^v//')
         fi
 
-    - name: Update files with new REPO_BRANCH
-      if: env.repo_branch_needs_update == 'true'
+        if [ -z "$latest_version" ] || [ "$latest_version" = "null" ]; then
+          echo "No tags found for ${{ matrix.version_line }}. Skipping."
+          echo "skip=true" >> $GITHUB_ENV
+          exit 0
+        fi
+
+        echo "latest_version=$latest_version" >> $GITHUB_ENV
+        echo "skip=false" >> $GITHUB_ENV
+        echo "Latest version for ${{ matrix.version_line }}: $latest_version"
+
+    - name: Check caller workflow for version update
+      if: env.skip != 'true'
       run: |
-        IFS=',' read -r -a files <<< "${{ env.files_to_update }}"
-        for file in "${files[@]}"; do
-          sed -i "s/REPO_BRANCH: .*/REPO_BRANCH: ${{ env.latest_version }}/" "$file"
-          echo "Updated REPO_BRANCH in $file to ${{ env.latest_version }}."
-        done
+        file="${{ matrix.caller_workflow }}"
+        if [ ! -f "$file" ]; then
+          echo "Warning: Caller workflow $file does not exist."
+          echo "needs_update=false" >> $GITHUB_ENV
+          exit 0
+        fi
+
+        current_version=$(grep -oP "immortalwrt_version: '\K[^']+" "$file" || echo "")
+        if [ "$current_version" != "${{ env.latest_version }}" ]; then
+          echo "Caller workflow needs update: $current_version -> ${{ env.latest_version }}"
+          echo "needs_update=true" >> $GITHUB_ENV
+        else
+          echo "Caller workflow is up-to-date."
+          echo "needs_update=false" >> $GITHUB_ENV
+        fi
+
+    - name: Update caller workflow version
+      if: env.needs_update == 'true'
+      run: |
+        file="${{ matrix.caller_workflow }}"
+        sed -i "s/immortalwrt_version: '.*'/immortalwrt_version: '${{ env.latest_version }}'/" "$file"
+        echo "Updated immortalwrt_version in $file to ${{ env.latest_version }}."
 
     - name: Check CONFIG_VERSION_REPO in .config
-      id: check_config_repo
+      if: env.skip != 'true'
       run: |
+        config_file="${{ matrix.config_path }}"
+        if [ ! -f "$config_file" ]; then
+          echo "Warning: Config file $config_file does not exist."
+          echo "config_needs_update=false" >> $GITHUB_ENV
+          exit 0
+        fi
+
         latest_repo="https://downloads.immortalwrt.org/releases/${{ env.latest_version }}"
-        current_repo=$(grep -oP '^CONFIG_VERSION_REPO=\K.*' config/nightly/.config)
+        current_repo=$(grep -oP '^CONFIG_VERSION_REPO=\K.*' "$config_file" || echo "")
         if [ "$current_repo" != "\"$latest_repo\"" ]; then
-          echo "CONFIG_VERSION_REPO in .config needs update: $current_repo -> $latest_repo"
-          echo "config_repo_needs_update=true" >> $GITHUB_ENV
+          echo "CONFIG_VERSION_REPO needs update: $current_repo -> $latest_repo"
+          echo "config_needs_update=true" >> $GITHUB_ENV
         else
-          echo "CONFIG_VERSION_REPO in .config is up-to-date."
-          echo "config_repo_needs_update=false" >> $GITHUB_ENV
+          echo "CONFIG_VERSION_REPO is up-to-date."
+          echo "config_needs_update=false" >> $GITHUB_ENV
         fi
 
     - name: Update CONFIG_VERSION_REPO in .config
-      if: env.config_repo_needs_update == 'true'
+      if: env.config_needs_update == 'true'
       run: |
+        config_file="${{ matrix.config_path }}"
         latest_repo="https://downloads.immortalwrt.org/releases/${{ env.latest_version }}"
-        sed -i 's|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO="'"$latest_repo"'"|g' config/nightly/.config
-        echo "Updated CONFIG_VERSION_REPO in .config to $latest_repo."
+        sed -i 's|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO="'"$latest_repo"'"|g' "$config_file"
+        echo "Updated CONFIG_VERSION_REPO in $config_file to $latest_repo."
+
+    - name: Update version.json
+      if: env.needs_update == 'true' || env.config_needs_update == 'true'
+      run: |
+        VERSION_JSON="config/${{ matrix.version_line }}/version.json"
+        jq --arg branch "${{ env.latest_version }}" \
+           '.branch = $branch' "$VERSION_JSON" > "$VERSION_JSON.tmp"
+        mv "$VERSION_JSON.tmp" "$VERSION_JSON"
 
     - name: Create a pull request
-      if: env.repo_branch_needs_update == 'true' || env.config_repo_needs_update == 'true'
+      if: env.needs_update == 'true' || env.config_needs_update == 'true'
       uses: peter-evans/create-pull-request@v8
       with:
         token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        branch: bump-immortalwrt-${{ env.latest_version }}
-        commit-message: 'Bump ImmortalWRT to version v${{ env.latest_version }}'
-        title: 'Bump ImmortalWRT to version v${{ env.latest_version }}'
+        branch: bump-immortalwrt-${{ matrix.version_line }}-${{ env.latest_version }}
+        commit-message: 'bump: update ImmortalWRT ${{ matrix.version_line }} to version v${{ env.latest_version }}'
+        title: 'Bump ImmortalWRT ${{ matrix.version_line }} to version v${{ env.latest_version }}'
         body: |
-          This pull request updates the ImmortalWRT version to **v${{ env.latest_version }}**.
+          This pull request updates the ImmortalWRT version for **${{ matrix.version_line }}** to **v${{ env.latest_version }}**.
 
           Changes included:
-          - Updated `REPO_BRANCH` in the following files:
-            ${{ env.files_to_update }}
-          - Updated `CONFIG_VERSION_REPO` in `.config`.
+          - Updated `immortalwrt_version` in `${{ matrix.caller_workflow }}`
+          - Updated `CONFIG_VERSION_REPO` in `${{ matrix.config_path }}`
+          - Updated `config/${{ matrix.version_line }}/version.json`
 
-          Labels: bump, immortalwrt, nightly, v${{ env.latest_version }}
-        labels: bump, immortalwrt, nightly, v${{ env.latest_version }}
+        labels: bump, immortalwrt, ${{ matrix.version_line }}, v${{ env.latest_version }}
 
     - name: Delete workflow runs
       uses: Mattraks/delete-workflow-runs@v2.1.0

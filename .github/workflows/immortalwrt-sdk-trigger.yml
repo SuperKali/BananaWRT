@@ -1,0 +1,53 @@
+#
+# File: .github/workflows/immortalwrt-sdk-trigger.yml
+# Description: Trigger SDK build when a version bump PR is merged
+#
+# Copyright (c) 2024-2025 SuperKali <hello@superkali.me>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+
+name: Trigger SDK Build on Version Bump
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+    paths:
+      - 'config/*/version.json'
+      - '.github/workflows/immortalwrt-builder-stable.yml'
+      - '.github/workflows/immortalwrt-builder-nightly.yml'
+
+jobs:
+  trigger-sdk:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+
+    - name: Detect bumped versions
+      id: detect
+      run: |
+        # Read all active versions from version.json files
+        VERSIONS=""
+        for vf in config/*/version.json; do
+          branch=$(jq -r '.branch' "$vf")
+          status=$(jq -r '.status' "$vf")
+          if [ "$status" = "active" ] && [ -n "$branch" ]; then
+            [ -n "$VERSIONS" ] && VERSIONS="${VERSIONS},"
+            VERSIONS="${VERSIONS}${branch}"
+          fi
+        done
+
+        echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
+        echo "Detected versions to build: $VERSIONS"
+
+    - name: Trigger SDK Matrix Builder
+      env:
+        GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      run: |
+        gh workflow run immortalwrt-sdk-matrix-builder.yml \
+          -f architecture=ALL \
+          -f versions="${{ steps.detect.outputs.versions }}"

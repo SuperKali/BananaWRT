@@ -36,7 +36,7 @@ env:
   FEEDS_CONF: feeds.conf.default
   REPO_SCRIPT: scripts/builder/custom-repository.sh
   STOCK_PACKAGES: scripts/builder/remove-stock-packages.sh
-  CONFIG_FILE: config/stable/.config
+  CONFIG_FILE: ''  # Computed dynamically per matrix version
   UPLOAD_SDK: true
   TZ: Europe/Rome
 
@@ -73,6 +73,21 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v6
 
+    - name: Compute Version Config Path
+      run: |
+        VERSION_LINE="v$(echo '${{ matrix.version }}' | grep -oP '^\d+\.\d+')"
+        # SDK builds use stable config if available, otherwise nightly
+        if [ -f "config/${VERSION_LINE}/stable/.config" ]; then
+          echo "CONFIG_FILE=config/${VERSION_LINE}/stable/.config" >> $GITHUB_ENV
+        elif [ -f "config/${VERSION_LINE}/nightly/.config" ]; then
+          echo "CONFIG_FILE=config/${VERSION_LINE}/nightly/.config" >> $GITHUB_ENV
+        else
+          echo "::error::No config found for ${VERSION_LINE}"
+          exit 1
+        fi
+        FEED_BRANCH=$(jq -r '.feed_branch' "config/${VERSION_LINE}/version.json")
+        echo "FEED_BRANCH=$FEED_BRANCH" >> $GITHUB_ENV
+
     - name: Set Up Build Environment
       env:
         DEBIAN_FRONTEND: noninteractive
@@ -102,7 +117,7 @@ jobs:
         [ -e ${{ env.FEEDS_CONF }} ] && mv ${{ env.FEEDS_CONF }} ${{ runner.workspace }}/immortalwrt/feeds.conf.default
         chmod +x ${{ env.REPO_SCRIPT }}
         cd ${{ runner.workspace }}/immortalwrt
-        $GITHUB_WORKSPACE/${{ env.REPO_SCRIPT }}
+        $GITHUB_WORKSPACE/${{ env.REPO_SCRIPT }} ${{ env.FEED_BRANCH }}
 
     - name: Update and Install Package Feeds
       working-directory: ${{ runner.workspace }}/immortalwrt
@@ -123,7 +138,7 @@ jobs:
       working-directory: ${{ runner.workspace }}/immortalwrt
       run: |
         ./scripts/diffconfig.sh > diffconfig
-        curl https://downloads.immortalwrt.org/releases/${{ matrix.version }}/targets/mediatek/filogic/config.buildinfo
+        curl -sf https://downloads.immortalwrt.org/releases/${{ matrix.version }}/targets/mediatek/filogic/config.buildinfo || { echo "::warning::config.buildinfo not available for ${{ matrix.version }}"; true; }
         cat diffconfig >> config.buildinfo
         mv config.buildinfo .config
         [ -n "$REPO_BRANCH" ] && sed -i \
