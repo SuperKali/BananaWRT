@@ -1,5 +1,7 @@
 #!/bin/sh
 
+FIRMWARE_INDEX_URL="https://repo.superkali.me/bananawrt/firmware/firmware-index.json"
+
 print_banner() {
     echo -e "\033[1;36m"
     echo "    ____                               _       ______  ______"
@@ -7,7 +9,7 @@ print_banner() {
     echo "  / __  / __ \`/ __ \/ __ \`/ __ \/ __ \`/ | /| / / /_/ / / /   "
     echo " / /_/ / /_/ / / / / /_/ / / / / /_/ /| |/ |/ / _, _/ / /    "
     echo "/_____/\__,_/_/ /_/\__,_/_/ /_/\__,_/ |__/|__/_/ |_| /_/     "
-    echo -e "\033[1;33m          BananaWRT - The Ultimate System Updater 🚀       \033[0m"
+    echo -e "\033[1;33m          BananaWRT - The Ultimate System Updater          \033[0m"
     echo ""
 }
 
@@ -43,6 +45,10 @@ log_error() {
     echo -e "\033[1;31m[ERROR]\033[0m $1"
 }
 
+log_warning() {
+    echo -e "\033[1;33m[WARNING]\033[0m $1"
+}
+
 usage() {
     echo "Usage: $0 [fota|ota|packages] [--dry-run] [--reset]"
     exit 1
@@ -55,7 +61,7 @@ version_greater() {
 check_and_update_compat_version() {
     REQUIRED_VERSION="$1"
     CURRENT_VERSION=$(uci get system.@system[0].compat_version 2>/dev/null || echo "0.0")
-  
+
     if version_greater "$REQUIRED_VERSION" "$CURRENT_VERSION"; then
         log_info "Updating compat_version from $CURRENT_VERSION to $REQUIRED_VERSION..."
         uci set system.@system[0].compat_version="$REQUIRED_VERSION"
@@ -64,6 +70,29 @@ check_and_update_compat_version() {
     else
         log_info "Current compat_version ($CURRENT_VERSION) is already compatible or greater."
     fi
+}
+
+detect_current_version() {
+    # Read from bananawrt_release
+    if [ -f /etc/bananawrt_release ]; then
+        BANANA_CURRENT_RELEASE=$(grep "BANANAWRT_BUILD_DATE" /etc/bananawrt_release 2>/dev/null | cut -d"'" -f2)
+        BANANA_CURRENT_TYPE=$(grep "BANANAWRT_TYPE" /etc/bananawrt_release 2>/dev/null | cut -d"'" -f2)
+        BANANA_CURRENT_LINE=$(grep "BANANAWRT_VERSION_LINE" /etc/bananawrt_release 2>/dev/null | cut -d"'" -f2)
+        BANANA_CURRENT_IWRT=$(grep "BANANAWRT_IMMORTALWRT_VERSION" /etc/bananawrt_release 2>/dev/null | cut -d"'" -f2)
+    fi
+
+    # Fallback for legacy firmware (pre-migration, no VERSION_LINE field)
+    if [ -z "$BANANA_CURRENT_LINE" ]; then
+        FW_VER=$(grep "DISTRIB_RELEASE" /etc/openwrt_release 2>/dev/null | cut -d"'" -f2)
+        if [ -n "$FW_VER" ]; then
+            MAJOR_MINOR=$(echo "$FW_VER" | sed -n 's/^\([0-9]*\.[0-9]*\).*/\1/p')
+            BANANA_CURRENT_LINE="v${MAJOR_MINOR}"
+            BANANA_CURRENT_IWRT="$FW_VER"
+        fi
+    fi
+
+    # Default track to stable if unknown
+    [ -z "$BANANA_CURRENT_TYPE" ] && BANANA_CURRENT_TYPE="stable"
 }
 
 MODE=""
@@ -100,197 +129,161 @@ print_banner
 if [ "$MODE" = "fota" ]; then
     command -v curl >/dev/null 2>&1 || { log_error "curl is not installed. Cannot continue."; exit 1; }
     command -v jq >/dev/null 2>&1 || { log_error "jq is not installed. Cannot continue."; exit 1; }
-    BANANA_CURRENT_RELEASE=$(grep -o "BANANAWRT_BUILD_DATE='.*'" /etc/bananawrt_release  | cut -d "'" -f 2)
-    [ ! -z "$BANANA_CURRENT_RELEASE" ] && log_info "Current firmware version: $BANANA_CURRENT_RELEASE"
-    log_info "Fetching releases from GitHub..."
+
+    detect_current_version
+
+    [ -n "$BANANA_CURRENT_RELEASE" ] && log_info "Current build: $BANANA_CURRENT_RELEASE"
+    [ -n "$BANANA_CURRENT_LINE" ] && log_info "Current version line: $BANANA_CURRENT_LINE ($BANANA_CURRENT_TYPE)"
+
+    log_info "Fetching firmware index from repo.superkali.me..."
     tempfile=$(mktemp)
-    ( curl -s "https://api.github.com/repos/SuperKali/BananaWRT/releases" > "$tempfile" ) &
+    ( curl -sf "$FIRMWARE_INDEX_URL" > "$tempfile" ) &
     curl_pid=$!
-    spinner_with_prefix $curl_pid "\033[1;33mLoading releases...\033[0m"
+    spinner_with_prefix $curl_pid "\033[1;33mLoading firmware index...\033[0m"
     wait $curl_pid
-    RELEASES_JSON=$(cat "$tempfile")
+
+    if [ ! -s "$tempfile" ]; then
+        log_error "Failed to download firmware index."
+        rm -f "$tempfile"
+        exit 1
+    fi
+
+    INDEX_JSON=$(cat "$tempfile")
     rm -f "$tempfile"
-    echo ""
-    echo -e "\033[1;35mLast 4 available releases:\033[0m"
-    for i in 0 1 2 3; do
-        tag=$(echo "$RELEASES_JSON" | jq -r ".[$i].tag_name")
-        asset=$(echo "$RELEASES_JSON" | jq -r ".[$i].assets[] | select(.name | endswith(\"emmc-preloader.bin\")) | .name" | head -n 1)
-        fw=$(echo "$asset" | sed -n 's/^immortalwrt-\(.*\)-mediatek.*$/\1/p')
-        [ -z "$fw" ] && fw="N/A"
-        body=$(echo "$RELEASES_JSON" | jq -r ".[$i].body")
-        if echo "$body" | grep -iq "Stable Release"; then
-            rtype="Stable"
-        elif echo "$body" | grep -iq "Nightly Release"; then
-            rtype="Nightly"
-        else
-            rtype="Unknown"
-        fi
-        echo -e "\033[1;33m$((i+1)))\033[0m \033[1;36m$tag\033[0m - \033[1;32mFirmware: $fw\033[0m - \033[1;35m$rtype\033[0m"
-    done
+
+    # Check if current version line is EOL
+    CURRENT_STATUS=$(echo "$INDEX_JSON" | jq -r ".versions[\"$BANANA_CURRENT_LINE\"].status // \"unknown\"")
+    if [ "$CURRENT_STATUS" = "eol" ]; then
+        log_warning "Your version line ($BANANA_CURRENT_LINE) is End-of-Life."
+        log_warning "Consider upgrading to a newer version (see cross-version options below)."
+        echo ""
+    fi
+
+    # Get builds for current version line and track
+    BUILDS=$(echo "$INDEX_JSON" | jq -r ".versions[\"$BANANA_CURRENT_LINE\"].tracks[\"$BANANA_CURRENT_TYPE\"].builds // []")
+    BUILD_COUNT=$(echo "$BUILDS" | jq 'length')
+    DISPLAY_COUNT=4
+    [ "$BUILD_COUNT" -lt "$DISPLAY_COUNT" ] && DISPLAY_COUNT="$BUILD_COUNT"
+
+    CROSS_VERSION=false
+    TOTAL_OPTIONS=0
+
+    if [ "$BUILD_COUNT" -gt 0 ]; then
+        echo ""
+        echo -e "\033[1;35mAvailable releases for $BANANA_CURRENT_LINE ($BANANA_CURRENT_TYPE):\033[0m"
+        for i in $(seq 0 $((DISPLAY_COUNT - 1))); do
+            tag=$(echo "$BUILDS" | jq -r ".[$i].tag")
+            iwrt_ver=$(echo "$BUILDS" | jq -r ".[$i].immortalwrt_version")
+            echo -e "\033[1;33m$((i+1)))\033[0m \033[1;36m$tag\033[0m - \033[1;32mFirmware: $iwrt_ver\033[0m - \033[1;35m$BANANA_CURRENT_TYPE\033[0m"
+            TOTAL_OPTIONS=$((TOTAL_OPTIONS + 1))
+        done
+    else
+        echo ""
+        log_warning "No builds available for $BANANA_CURRENT_LINE ($BANANA_CURRENT_TYPE)."
+    fi
+
+    # Show cross-version upgrade options
+    OTHER_VERSIONS=$(echo "$INDEX_JSON" | jq -r ".versions | to_entries[] | select(.key != \"$BANANA_CURRENT_LINE\" and .value.status == \"active\") | .key")
+
+    CROSS_OPTIONS=""
+    if [ -n "$OTHER_VERSIONS" ]; then
+        echo ""
+        echo -e "\033[1;35mCross-version upgrades available:\033[0m"
+        for ver in $OTHER_VERSIONS; do
+            tracks=$(echo "$INDEX_JSON" | jq -r ".versions[\"$ver\"].tracks | keys[]")
+            for track in $tracks; do
+                latest_tag=$(echo "$INDEX_JSON" | jq -r ".versions[\"$ver\"].tracks[\"$track\"].latest_build")
+                iwrt_ver=$(echo "$INDEX_JSON" | jq -r ".versions[\"$ver\"].tracks[\"$track\"].immortalwrt_version")
+                TOTAL_OPTIONS=$((TOTAL_OPTIONS + 1))
+                CROSS_OPTIONS="${CROSS_OPTIONS}${TOTAL_OPTIONS}:${ver}:${track}
+"
+                echo -e "\033[1;33m${TOTAL_OPTIONS})\033[0m \033[1;36m$latest_tag\033[0m - \033[1;32mFirmware: $iwrt_ver\033[0m - \033[1;35m$ver $track\033[0m \033[1;31m[CROSS-VERSION]\033[0m"
+            done
+        done
+    fi
+
+    if [ "$TOTAL_OPTIONS" -eq 0 ]; then
+        log_error "No releases available."
+        exit 1
+    fi
+
     echo ""
     echo -e "\033[1;35mSelect the release number to install (default 1):\033[0m"
     read -r selection
     [ -z "$selection" ] && selection=1
-    index=$((selection - 1))
-    SELECTED_VERSION=$(echo "$RELEASES_JSON" | jq -r ".[$index].tag_name")
-    if [ -z "$SELECTED_VERSION" ] || [ "$SELECTED_VERSION" = "null" ]; then
+
+    # Determine if cross-version selection
+    if [ "$selection" -gt "$DISPLAY_COUNT" ] 2>/dev/null && [ -n "$CROSS_OPTIONS" ]; then
+        # Cross-version upgrade selected
+        CROSS_LINE=$(echo "$CROSS_OPTIONS" | grep "^${selection}:" | cut -d: -f2)
+        CROSS_TRACK=$(echo "$CROSS_OPTIONS" | grep "^${selection}:" | cut -d: -f3)
+
+        if [ -z "$CROSS_LINE" ]; then
+            log_error "Invalid selection."
+            exit 1
+        fi
+
+        echo ""
+        echo -e "\033[1;31m============================================================\033[0m"
+        echo -e "\033[1;31m  CROSS-VERSION UPGRADE: $BANANA_CURRENT_LINE -> $CROSS_LINE\033[0m"
+        echo -e "\033[1;31m  This will ERASE ALL configuration (factory reset).\033[0m"
+        echo -e "\033[1;31m============================================================\033[0m"
+        echo ""
+        echo -e "\033[1;35mType 'YES' to confirm:\033[0m"
+        read -r confirm
+        if [ "$confirm" != "YES" ]; then
+            log_info "Cross-version upgrade cancelled."
+            exit 0
+        fi
+
+        CROSS_VERSION=true
+        RESET=1
+        BUILDS=$(echo "$INDEX_JSON" | jq -r ".versions[\"$CROSS_LINE\"].tracks[\"$CROSS_TRACK\"].builds // []")
+        index=0
+    else
+        index=$((selection - 1))
+    fi
+
+    # Get selected build info
+    SELECTED_TAG=$(echo "$BUILDS" | jq -r ".[$index].tag")
+    SELECTED_URL=$(echo "$BUILDS" | jq -r ".[$index].url")
+
+    if [ -z "$SELECTED_TAG" ] || [ "$SELECTED_TAG" = "null" ]; then
         log_error "Invalid release selected."
         exit 1
     fi
-    log_info "Selected release: $SELECTED_VERSION"
-    RELEASE_TAG="$SELECTED_VERSION"
-    asset_selected=$(echo "$RELEASES_JSON" | jq -r ".[$index].assets[] | select(.name | endswith(\"emmc-preloader.bin\")) | .name" | head -n 1)
-    FIRMWARE_VERSION=$(echo "$asset_selected" | sed -n 's/^immortalwrt-\(.*\)-mediatek.*$/\1/p')
-    [ -z "$FIRMWARE_VERSION" ] && { log_error "Unable to determine Firmware Version from the release."; exit 1; }
-    log_info "Detected Firmware Version: $FIRMWARE_VERSION"
-elif [ "$MODE" = "ota" ]; then
-    echo ""
-    echo -e "\033[1;35mOTA Mode:\033[0m Enter the Firmware Version of the files in /tmp (e.g., 24.10.0 or 24.10.0-rc4):"
-    read -r FIRMWARE_VERSION
-    [ -z "$FIRMWARE_VERSION" ] && { log_error "Firmware Version not specified. Cannot continue."; exit 1; }
-elif [ "$MODE" = "packages" ]; then
-    command -v curl >/dev/null 2>&1 || { log_error "curl is not installed. Cannot continue."; exit 1; }
-    command -v jq >/dev/null 2>&1 || { log_error "jq is not installed. Cannot continue."; exit 1; }
-    command -v opkg >/dev/null 2>&1 || { log_error "opkg is not installed. Cannot continue."; exit 1; }
-    
-    FIRMWARE_VERSION=$(grep -o "DISTRIB_RELEASE='.*'" /etc/openwrt_release | cut -d "'" -f 2)
-    [ -z "$FIRMWARE_VERSION" ] && { log_error "Unable to determine current firmware version."; exit 1; }
-    log_info "Current firmware version: $FIRMWARE_VERSION"
-    
-    REPO_URL="https://repo.superkali.me/releases/$FIRMWARE_VERSION/packages/additional_pack/index.json"
-    log_info "Fetching package index from $REPO_URL..."
-    tempfile=$(mktemp)
-    ( curl -s "$REPO_URL" > "$tempfile" ) &
-    curl_pid=$!
-    spinner_with_prefix $curl_pid "\033[1;33mFetching package index...\033[0m"
-    wait $curl_pid
-    
-    if [ ! -s "$tempfile" ]; then
-        log_error "Failed to download package index or file is empty."
-        rm -f "$tempfile"
+
+    log_info "Selected release: $SELECTED_TAG"
+
+    # Download firmware-info.json for the build
+    BUILD_INFO=$(curl -sf "${SELECTED_URL}firmware-info.json")
+    if [ -z "$BUILD_INFO" ]; then
+        log_error "Failed to download build info from ${SELECTED_URL}"
         exit 1
     fi
-    
-    ARCH=$(jq -r '.architecture' "$tempfile")
-    [ -z "$ARCH" ] || [ "$ARCH" = "null" ] && { log_error "Architecture not found in package index."; rm -f "$tempfile"; exit 1; }
-    log_info "Package architecture: $ARCH"
-    
-    packages_update_list=$(mktemp)
-    
-    log_info "Checking packages for updates..."
-    
-    jq -r '.packages | to_entries[] | "\(.key)|\(.value)"' "$tempfile" > "$packages_update_list"
-    
-    updates_needed=0
-    updates_list=$(mktemp)
-    
-    while IFS='|' read -r pkg_name repo_version; do
-        if echo "$pkg_name" | grep -q "^luci-i18n-"; then
-            continue
-        fi
-        
-        local_version=$(opkg list-installed | grep "^$pkg_name - " | cut -d ' ' -f 3)
-        
-        if [ -z "$local_version" ]; then
-            echo -e " - \033[1;36m$pkg_name\033[0m: \033[1;33mNot installed\033[0m -> \033[1;32m$repo_version\033[0m" >> "$updates_list"
-            updates_needed=1
-        elif [ "$local_version" != "$repo_version" ]; then
-            echo -e " - \033[1;36m$pkg_name\033[0m: \033[1;33m$local_version\033[0m -> \033[1;32m$repo_version\033[0m" >> "$updates_list"
-            updates_needed=1
-        fi
-    done < "$packages_update_list"
-    
-    if [ "$updates_needed" -eq 1 ]; then
-        echo -e "\033[1;35mPackages available for update:\033[0m"
-        cat "$updates_list"
-        echo ""
-        echo -e "\033[1;35mDo you want to proceed with updating these packages? (y/n):\033[0m"
-        read -r proceed
-        
-        if [ "$proceed" != "y" ] && [ "$proceed" != "Y" ]; then
-            log_info "Update cancelled."
-            rm -f "$tempfile" "$packages_update_list" "$updates_list"
-            exit 0
-        fi
-        
-        REPO_CONF="/etc/opkg/customfeeds.conf"
-        REPO_LINE="src/gz additional_pack https://repo.superkali.me/releases/$FIRMWARE_VERSION/packages/additional_pack"
-        
-        if ! grep -q "$REPO_LINE" "$REPO_CONF" 2>/dev/null; then
-            log_info "Adding custom repository..."
-            if [ "$DRY_RUN" -eq 1 ]; then
-                log_info "DRY-RUN: Would add repository: $REPO_LINE"
-            else
-                echo "$REPO_LINE" >> "$REPO_CONF"
-            fi
-        fi
-        
-        log_info "Updating package lists..."
-        if [ "$DRY_RUN" -eq 1 ]; then
-            log_info "DRY-RUN: Would run 'opkg update'"
-        else
-            opkg update
-        fi
-        
-        while IFS='|' read -r pkg_name repo_version; do
-            if echo "$pkg_name" | grep -q "^luci-i18n-"; then
-                continue
-            fi
-            
-            local_version=$(opkg list-installed | grep "^$pkg_name - " | cut -d ' ' -f 3)
-            
-            if [ -z "$local_version" ] || [ "$local_version" != "$repo_version" ]; then
-                log_info "Installing/upgrading $pkg_name ($repo_version)..."
-                if [ "$DRY_RUN" -eq 1 ]; then
-                    log_info "DRY-RUN: Would run 'opkg install $pkg_name'"
-                else
-                    opkg install "$pkg_name"
-                fi
-            fi
-        done < "$packages_update_list"
-        
-        log_success "Package updates completed."
-    else
-        log_success "All packages are up to date."
-    fi
-    
-    rm -f "$tempfile" "$packages_update_list" "$updates_list"
-    exit 0
-fi
 
-EMMC_PRELOADER="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-preloader.bin"
-EMMC_BL31_UBOOT="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-bl31-uboot.fip"
-EMMC_INITRAMFS="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-initramfs-recovery.itb"
-SYSUPGRADE_IMG="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-squashfs-sysupgrade.itb"
+    FIRMWARE_VERSION=$(echo "$BUILD_INFO" | jq -r '.immortalwrt_version')
+    log_info "Firmware Version: $FIRMWARE_VERSION"
 
-if [ "$MODE" = "fota" ]; then
-    for asset in "emmc-preloader" "emmc-bl31-uboot" "initramfs-recovery" "squashfs-sysupgrade"; do
-        case "$asset" in
-            emmc-preloader)
-                filename="immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-preloader.bin"
-                ;;
-            emmc-bl31-uboot)
-                filename="immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-bl31-uboot.fip"
-                ;;
-            initramfs-recovery)
-                filename="immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-initramfs-recovery.itb"
-                ;;
-            squashfs-sysupgrade)
-                filename="immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-squashfs-sysupgrade.itb"
-                ;;
-        esac
+    # Download firmware files
+    for asset_key in "emmc_preloader" "emmc_bl31_uboot" "initramfs_recovery" "squashfs_sysupgrade"; do
+        filename=$(echo "$BUILD_INFO" | jq -r ".files[\"$asset_key\"].filename")
+
+        if [ -z "$filename" ] || [ "$filename" = "null" ]; then
+            log_error "Asset $asset_key not found in build info."
+            exit 1
+        fi
+
+        download_url="${SELECTED_URL}${filename}"
         prefix="\033[1;36mDownloading $filename...\033[0m"
-        asset_url=$(echo "$RELEASES_JSON" | jq -r ".[$index].assets[] | select(.name==\"$filename\") | .browser_download_url")
-        [ -z "$asset_url" ] || [ "$asset_url" = "null" ] && { log_error "Asset $filename not found for release $RELEASE_TAG."; exit 1; }
 
         if [ "$DRY_RUN" -eq 1 ]; then
             printf "%b\n" "$prefix"
-            log_info "DRY-RUN: Simulated download of $filename from $asset_url"
-            touch "/tmp/$filename"
+            log_info "DRY-RUN: Simulated download of $filename from $download_url"
             echo ""
         else
             printf "%b " "$prefix"
-            ( curl -s -L -o "/tmp/$filename" "$asset_url" ) &
+            ( curl -sf -L -o "/tmp/$filename" "$download_url" ) &
             curl_pid=$!
             spinner_with_prefix $curl_pid "$prefix"
             echo ""
@@ -301,7 +294,127 @@ if [ "$MODE" = "fota" ]; then
             log_success "$filename downloaded successfully."
         fi
     done
+
+elif [ "$MODE" = "ota" ]; then
+    echo ""
+    echo -e "\033[1;35mOTA Mode:\033[0m Enter the Firmware Version of the files in /tmp (e.g., 24.10.0 or 24.10.0-rc4):"
+    read -r FIRMWARE_VERSION
+    [ -z "$FIRMWARE_VERSION" ] && { log_error "Firmware Version not specified. Cannot continue."; exit 1; }
+
+elif [ "$MODE" = "packages" ]; then
+    command -v curl >/dev/null 2>&1 || { log_error "curl is not installed. Cannot continue."; exit 1; }
+    command -v jq >/dev/null 2>&1 || { log_error "jq is not installed. Cannot continue."; exit 1; }
+    command -v opkg >/dev/null 2>&1 || { log_error "opkg is not installed. Cannot continue."; exit 1; }
+
+    FIRMWARE_VERSION=$(grep -o "DISTRIB_RELEASE='.*'" /etc/openwrt_release | cut -d "'" -f 2)
+    [ -z "$FIRMWARE_VERSION" ] && { log_error "Unable to determine current firmware version."; exit 1; }
+    log_info "Current firmware version: $FIRMWARE_VERSION"
+
+    REPO_URL="https://repo.superkali.me/releases/$FIRMWARE_VERSION/packages/additional_pack/index.json"
+    log_info "Fetching package index from $REPO_URL..."
+    tempfile=$(mktemp)
+    ( curl -s "$REPO_URL" > "$tempfile" ) &
+    curl_pid=$!
+    spinner_with_prefix $curl_pid "\033[1;33mFetching package index...\033[0m"
+    wait $curl_pid
+
+    if [ ! -s "$tempfile" ]; then
+        log_error "Failed to download package index or file is empty."
+        rm -f "$tempfile"
+        exit 1
+    fi
+
+    ARCH=$(jq -r '.architecture' "$tempfile")
+    [ -z "$ARCH" ] || [ "$ARCH" = "null" ] && { log_error "Architecture not found in package index."; rm -f "$tempfile"; exit 1; }
+    log_info "Package architecture: $ARCH"
+
+    packages_update_list=$(mktemp)
+
+    log_info "Checking packages for updates..."
+
+    jq -r '.packages | to_entries[] | "\(.key)|\(.value)"' "$tempfile" > "$packages_update_list"
+
+    updates_needed=0
+    updates_list=$(mktemp)
+
+    while IFS='|' read -r pkg_name repo_version; do
+        if echo "$pkg_name" | grep -q "^luci-i18n-"; then
+            continue
+        fi
+
+        local_version=$(opkg list-installed | grep "^$pkg_name - " | cut -d ' ' -f 3)
+
+        if [ -z "$local_version" ]; then
+            echo -e " - \033[1;36m$pkg_name\033[0m: \033[1;33mNot installed\033[0m -> \033[1;32m$repo_version\033[0m" >> "$updates_list"
+            updates_needed=1
+        elif [ "$local_version" != "$repo_version" ]; then
+            echo -e " - \033[1;36m$pkg_name\033[0m: \033[1;33m$local_version\033[0m -> \033[1;32m$repo_version\033[0m" >> "$updates_list"
+            updates_needed=1
+        fi
+    done < "$packages_update_list"
+
+    if [ "$updates_needed" -eq 1 ]; then
+        echo -e "\033[1;35mPackages available for update:\033[0m"
+        cat "$updates_list"
+        echo ""
+        echo -e "\033[1;35mDo you want to proceed with updating these packages? (y/n):\033[0m"
+        read -r proceed
+
+        if [ "$proceed" != "y" ] && [ "$proceed" != "Y" ]; then
+            log_info "Update cancelled."
+            rm -f "$tempfile" "$packages_update_list" "$updates_list"
+            exit 0
+        fi
+
+        REPO_CONF="/etc/opkg/customfeeds.conf"
+        REPO_LINE="src/gz additional_pack https://repo.superkali.me/releases/$FIRMWARE_VERSION/packages/additional_pack"
+
+        if ! grep -q "$REPO_LINE" "$REPO_CONF" 2>/dev/null; then
+            log_info "Adding custom repository..."
+            if [ "$DRY_RUN" -eq 1 ]; then
+                log_info "DRY-RUN: Would add repository: $REPO_LINE"
+            else
+                echo "$REPO_LINE" >> "$REPO_CONF"
+            fi
+        fi
+
+        log_info "Updating package lists..."
+        if [ "$DRY_RUN" -eq 1 ]; then
+            log_info "DRY-RUN: Would run 'opkg update'"
+        else
+            opkg update
+        fi
+
+        while IFS='|' read -r pkg_name repo_version; do
+            if echo "$pkg_name" | grep -q "^luci-i18n-"; then
+                continue
+            fi
+
+            local_version=$(opkg list-installed | grep "^$pkg_name - " | cut -d ' ' -f 3)
+
+            if [ -z "$local_version" ] || [ "$local_version" != "$repo_version" ]; then
+                log_info "Installing/upgrading $pkg_name ($repo_version)..."
+                if [ "$DRY_RUN" -eq 1 ]; then
+                    log_info "DRY-RUN: Would run 'opkg install $pkg_name'"
+                else
+                    opkg install "$pkg_name"
+                fi
+            fi
+        done < "$packages_update_list"
+
+        log_success "Package updates completed."
+    else
+        log_success "All packages are up to date."
+    fi
+
+    rm -f "$tempfile" "$packages_update_list" "$updates_list"
+    exit 0
 fi
+
+EMMC_PRELOADER="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-preloader.bin"
+EMMC_BL31_UBOOT="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-bl31-uboot.fip"
+EMMC_INITRAMFS="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-initramfs-recovery.itb"
+SYSUPGRADE_IMG="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-squashfs-sysupgrade.itb"
 
 echo ""
 
