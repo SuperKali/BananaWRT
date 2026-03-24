@@ -92,6 +92,10 @@ jobs:
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
     
     steps:
+    - name: Cleanup previous build
+      run: |
+        sudo rm -rf "${{ runner.workspace }}/immortalwrt"
+
     - name: Checkout Source Code
       uses: actions/checkout@v6
 

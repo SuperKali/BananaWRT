@@ -60,6 +60,10 @@ jobs:
   build:
     runs-on: [self-hosted, "${{ inputs.architecture }}"]
     steps:
+    - name: Cleanup previous build
+      run: |
+        sudo rm -rf "${{ runner.workspace }}/immortalwrt"
+
     - name: Checkout Source Code
       uses: actions/checkout@v6
 
@@ -314,4 +318,4 @@ jobs:
       run: |
         sudo rm -rf ~/.netrc
         sudo rm -rf "${{ runner.workspace }}/immortalwrt"
-        rm -rf ftp-upload
+        sudo rm -rf ftp-upload
