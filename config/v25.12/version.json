@@ -1,0 +1,24 @@
+{
+  "version_line": "v25.12",
+  "branch": "25.12.0",
+  "status": "active",
+  "tracks": ["nightly"],
+  "feed_branch": "v25.12",
+  "checker_pattern": "v25\\.12\\.",
+  "packages": [
+    "atc-apn-database",
+    "atc-fib-fm350_gl",
+    "banana-utils",
+    "linkup-optimization",
+    "lpac",
+    "luci-app-3ginfo-lite",
+    "luci-app-fan",
+    "luci-app-lite-watchdog",
+    "luci-app-modemband",
+    "luci-app-sms-tool-js",
+    "luci-proto-atc",
+    "modemband",
+    "sms-tool",
+    "speedtest-ookla"
+  ]
+}
