@@ -19,6 +19,6 @@ jobs:
   build:
     uses: ./.github/workflows/immortalwrt-builder.yml
     with:
-      immortalwrt_version: '25.12.0'
+      immortalwrt_version: '25.12.0-rc1'
       release_type: nightly
     secrets: inherit

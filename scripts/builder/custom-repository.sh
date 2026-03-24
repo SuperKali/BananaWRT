@@ -12,7 +12,7 @@
 FEED_BRANCH="${1:-}"
 
 if [ -n "$FEED_BRANCH" ]; then
-    echo "src-git additional_pack https://github.com/SuperKali/openwrt-packages^${FEED_BRANCH}" >> feeds.conf.default
+    echo "src-git additional_pack https://github.com/SuperKali/openwrt-packages;${FEED_BRANCH}" >> feeds.conf.default
     echo "Added custom feed with branch: ${FEED_BRANCH}"
 else
     echo 'src-git additional_pack https://github.com/SuperKali/openwrt-packages' >> feeds.conf.default
