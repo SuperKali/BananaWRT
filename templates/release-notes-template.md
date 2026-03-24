@@ -11,10 +11,13 @@
 - 📌 **Firmware Version:** {{BANANAWRT_VERSION}}
 
 <div style="text-align: center; margin-top: 20px;">
-  <h2 style="font-family: Arial, sans-serif; font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 20px;">Additional Resources</h2>
+  <h2 style="font-family: Arial, sans-serif; font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 20px;">Download & Resources</h2>
 </div>
 
-🔗 **[Releases Page](https://github.com/SuperKali/BananaWRT/releases)**  
+📥 **[Download Firmware]({{DOWNLOAD_URL}})**
+➡️ Download firmware files directly from the BananaWRT repository.
+
+🔗 **[Releases Page](https://github.com/SuperKali/BananaWRT/releases)**
 ➡️ Explore detailed information about this release, including changelogs, files, and more.
 
 🛠️ **[Update Script](https://github.com/SuperKali/BananaWRT/blob/main/scripts/update-script.sh)**  

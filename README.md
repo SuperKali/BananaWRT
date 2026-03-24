@@ -28,9 +28,20 @@
 - **Comprehensive modem tools** from 4IceG project (`luci-app-3ginfo`, `modemband`, and more)
 
 ### Build System
-- **Automated CI/CD pipeline** using GitHub Actions
-- **Stable and nightly builds** for production and testing environments
-- **Built on ImmortalWRT** for enhanced stability and feature set
+- **Multi-version support** — simultaneous support for multiple ImmortalWRT releases (e.g., v24.10 stable + v25.12 nightly)
+- **Automated CI/CD pipeline** using GitHub Actions with reusable workflows
+- **Firmware distribution** via [repo.superkali.me](https://repo.superkali.me/bananawrt/firmware/) with automatic retention
+- **Automatic version bumping** — detects new upstream ImmortalWRT releases and creates bump PRs
+- **Automated promotion** — workflow to promote nightly to stable and set up the next nightly version
+
+### Release Tracks
+
+| Track | Description | Schedule |
+|-------|-------------|----------|
+| **Stable** | Production-ready builds from a proven ImmortalWRT release | Monthly |
+| **Nightly** | Builds from the latest ImmortalWRT release for early testing | Weekly |
+
+Each version line (e.g., `v24.10`, `v25.12`) has its own configuration, patches, and feed branch. Version metadata is stored in `config/<version>/version.json`.
 
 ---
 
@@ -64,6 +75,35 @@
 | **5G Bands** | n1/2/3/7/25/28/30/38/40/41/48/66/77/78/79 |
 | **LTE Bands** | b1/2/3/4/7/25/30/32/34/38/39/40/41/42/43/48/66 |
 | **Interface** | M.2 Key-B (USB 3.1 Gen1 / PCIe Gen3 x1) |
+
+---
+
+## Downloads
+
+Firmware binaries are hosted on **[repo.superkali.me](https://repo.superkali.me/bananawrt/firmware/)** and can be downloaded directly or via the built-in FOTA update system.
+
+| Resource | URL |
+|----------|-----|
+| **Firmware** | [repo.superkali.me/bananawrt/firmware/](https://repo.superkali.me/bananawrt/firmware/) |
+| **Packages** | [repo.superkali.me/releases/](https://repo.superkali.me/releases/) |
+| **SDK** | [repo.superkali.me/bananawrt/sdk/](https://repo.superkali.me/bananawrt/sdk/) |
+
+### On-Device Update
+
+Use the built-in update script to upgrade your device:
+
+```bash
+# Full OTA update (download + flash)
+bananawrt-update fota
+
+# Package updates only
+bananawrt-update packages
+
+# Dry run (simulate without changes)
+bananawrt-update fota --dry-run
+```
+
+The FOTA system automatically detects your current version and shows compatible releases. Cross-version upgrades (e.g., v24.10 → v25.12) are supported with explicit confirmation and factory reset.
 
 ---
 
