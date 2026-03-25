@@ -266,11 +266,11 @@ if [ "$MODE" = "fota" ]; then
     log_info "Firmware Version: $FIRMWARE_VERSION"
 
     # Download firmware files
-    for asset_key in "emmc_preloader" "emmc_bl31_uboot" "initramfs_recovery" "squashfs_sysupgrade"; do
-        filename=$(echo "$BUILD_INFO" | jq -r ".files[\"$asset_key\"].filename")
+    for asset_pattern in "emmc-preloader" "emmc-bl31-uboot" "initramfs-recovery" "squashfs-sysupgrade"; do
+        filename=$(echo "$BUILD_INFO" | jq -r ".files | keys[] | select(contains(\"$asset_pattern\"))")
 
         if [ -z "$filename" ] || [ "$filename" = "null" ]; then
-            log_error "Asset $asset_key not found in build info."
+            log_error "File matching '$asset_pattern' not found in build info."
             exit 1
         fi
 

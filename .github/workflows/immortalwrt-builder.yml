@@ -191,6 +191,7 @@ jobs:
       run: |
         cd ${{ runner.workspace }}/immortalwrt/bin/targets/*/*
         rm -rf packages
+        rm -f *-sdk-* *-imagebuilder-* *-toolchain-* llvm-bpf-*
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
 
     - name: Upload Firmware Files
@@ -241,25 +242,13 @@ jobs:
         # Generate firmware-info.json for this build
         cd "$FIRMWARE_DIR"
 
-        # Map firmware files to known keys
-        get_asset_key() {
-          case "$1" in
-            *emmc-preloader*) echo "emmc_preloader" ;;
-            *emmc-bl31-uboot*) echo "emmc_bl31_uboot" ;;
-            *initramfs-recovery*) echo "initramfs_recovery" ;;
-            *squashfs-sysupgrade*) echo "squashfs_sysupgrade" ;;
-            *) echo "" ;;
-          esac
-        }
-
+        # Build files JSON with all firmware files
         FILES_JSON="{"
         for file in *; do
           [ -f "$file" ] || continue
-          key=$(get_asset_key "$file")
-          [ -z "$key" ] && continue
           sha256=$(sha256sum "$file" | awk '{print $1}')
           size=$(stat -c%s "$file")
-          FILES_JSON="${FILES_JSON}\"${key}\":{\"filename\":\"${file}\",\"sha256\":\"${sha256}\",\"size\":${size}},"
+          FILES_JSON="${FILES_JSON}\"${file}\":{\"sha256\":\"${sha256}\",\"size\":${size}},"
         done
         FILES_JSON="${FILES_JSON%,}}"
 
