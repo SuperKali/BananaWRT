@@ -300,6 +300,7 @@ jobs:
     - name: FTP Upload to repo.superkali.me
       if: env.UPLOAD_RELEASE == 'true'
       run: |
+        command -v lftp >/dev/null 2>&1 || sudo apt-get update -qq && sudo apt-get install -y -qq lftp
         lftp -c "
         set ftp:ssl-allow no;
         open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} ${{ secrets.FTP_HOST }};
