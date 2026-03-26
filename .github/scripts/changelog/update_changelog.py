@@ -9,11 +9,18 @@ import emoji
 
 RELEASE_DATE = os.environ.get('RELEASE_DATE', datetime.now().strftime('%Y-%m-%d'))
 MAIN_REPO_PATH = os.getcwd()
-PACKAGES_REPO_PATH = os.environ.get('PACKAGES_REPO_PATH')
 DAYS_BACK = os.environ.get('DAYS_BACK')
 
-if not PACKAGES_REPO_PATH:
-    print("Error: PACKAGES_REPO_PATH not set")
+# Support multiple package repos (comma-separated) or single repo
+PACKAGES_REPO_PATHS_STR = os.environ.get('PACKAGES_REPO_PATHS', '')
+PACKAGES_REPO_PATH = os.environ.get('PACKAGES_REPO_PATH', '')
+
+if PACKAGES_REPO_PATHS_STR:
+    PACKAGES_REPO_LIST = [p.strip() for p in PACKAGES_REPO_PATHS_STR.split(',') if p.strip()]
+elif PACKAGES_REPO_PATH:
+    PACKAGES_REPO_LIST = [PACKAGES_REPO_PATH]
+else:
+    print("Error: PACKAGES_REPO_PATHS or PACKAGES_REPO_PATH not set")
     sys.exit(1)
 
 CHANGELOG_PATH = os.path.join(MAIN_REPO_PATH, 'CHANGELOG.md')
@@ -344,15 +351,22 @@ def update_changelog():
         last_date = get_last_changelog_date()
         
         main_commits = get_recent_commits(MAIN_REPO_PATH, last_date, existing_signatures, 'main')
-        
-        if os.path.isdir(PACKAGES_REPO_PATH) and os.path.isdir(os.path.join(PACKAGES_REPO_PATH, '.git')):
-            packages_commits = get_recent_commits(PACKAGES_REPO_PATH, last_date, existing_signatures, 'packages')
-        else:
-            print(f"Warning: Packages repository not found at {PACKAGES_REPO_PATH}")
-            packages_commits = []
-        
+
+        packages_commits = []
+        for pkg_repo_path in PACKAGES_REPO_LIST:
+            if os.path.isdir(pkg_repo_path) and os.path.isdir(os.path.join(pkg_repo_path, '.git')):
+                repo_name = os.path.basename(pkg_repo_path.rstrip('/'))
+                print(f"Scanning packages repo: {repo_name}")
+                commits = get_recent_commits(pkg_repo_path, last_date, existing_signatures, 'packages')
+                packages_commits.extend(commits)
+                # Add signatures to avoid duplicates across branches
+                for c in commits:
+                    existing_signatures.add(c['signature'])
+            else:
+                print(f"Warning: Packages repository not found at {pkg_repo_path}")
+
         print(f"Found {len(main_commits)} commits in main repository")
-        print(f"Found {len(packages_commits)} commits in packages repository")
+        print(f"Found {len(packages_commits)} commits in packages repositories")
         
         all_commits = main_commits + packages_commits
         

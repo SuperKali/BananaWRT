@@ -24,13 +24,18 @@ jobs:
         fetch-depth: 0
         token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
-    - name: Checkout external packages repository
-      uses: actions/checkout@v6
-      with:
-        repository: SuperKali/openwrt-packages
-        path: ${{ github.workspace }}/openwrt-packages
-        token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        fetch-depth: 0
+    - name: Checkout packages repositories (all version branches)
+      run: |
+        for vf in config/*/version.json; do
+          FEED_BRANCH=$(jq -r '.feed_branch' "$vf")
+          VERSION_LINE=$(jq -r '.version_line' "$vf")
+          STATUS=$(jq -r '.status' "$vf")
+          [ "$STATUS" != "active" ] && continue
+          echo "Cloning openwrt-packages branch $FEED_BRANCH for $VERSION_LINE..."
+          git clone --branch "$FEED_BRANCH" --single-branch \
+            https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/SuperKali/openwrt-packages.git \
+            "${{ github.workspace }}/openwrt-packages-${VERSION_LINE}" || echo "Warning: branch $FEED_BRANCH not found"
+        done
         
     - name: Set up Python
       uses: actions/setup-python@v6
@@ -54,9 +59,16 @@ jobs:
     - name: Update CHANGELOG
       env:
         GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        PACKAGES_REPO_PATH: ${{ github.workspace }}/openwrt-packages
         DAYS_BACK: ${{ github.event.inputs.days_back }}
       run: |
+        # Build comma-separated list of package repo paths
+        PATHS=""
+        for dir in ${{ github.workspace }}/openwrt-packages-v*/; do
+          [ -d "$dir/.git" ] || continue
+          [ -n "$PATHS" ] && PATHS="${PATHS},"
+          PATHS="${PATHS}${dir}"
+        done
+        export PACKAGES_REPO_PATHS="$PATHS"
         python .github/scripts/changelog/update_changelog.py
 
     - name: Check for changes
@@ -72,7 +84,7 @@ jobs:
     - name: Cleanup
       if: always()
       run: |
-        rm -rf ${{ github.workspace }}/openwrt-packages
+        rm -rf ${{ github.workspace }}/openwrt-packages-v*
 
     - name: Create Pull Request
       if: steps.check-changes.outputs.HAS_CHANGES == 'true'
