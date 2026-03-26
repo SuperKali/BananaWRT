@@ -3,6 +3,56 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2026-03-26]
+
+### 🧩 Additional Packages
+
+- 🔄 workflows: update github actions to latest versions by @SuperKali  
+- 🔄 `banana-utils`: sync banana-update and use sdk-master-index for workflows by @SuperKali  
+- 🔼 quectel-cm: bump cmake_minimum_required to 3.5 by @SuperKali  
+- 🌟 `luci-app-3ginfo`-lite: improve modem temperature detection with multi-level fallback by @SuperKali  
+- 🛠️ `luci-app-3ginfo`-lite: migrate icons from png to svg by @SuperKali  
+- 📦 sync package versions for apk format support by @SuperKali  
+- 🔄 banana-update: show other tracks and allow config preserve on cross-version by @SuperKali  
+- 🛠️ workflows: always inject apk key and move detect after defconfig by @SuperKali  
+- 🛠️ workflows: write apk key to private-key.pem and inject before compile by @SuperKali  
+- 🐛 workflows: fix apk key path and openssl config for sdk builds by @SuperKali  
+- 🐛 workflows: fix ftp deploy deleting keys by syncing both before upload by @SuperKali  
+- 🛠️ workflows: use sdk-master-index.json for sdk resolution by @SuperKali  
+- ➕ `banana-utils`: add dual ipk/apk support and update banana-update by @SuperKali  
+- 🐛 `luci-app-fan`: fix save & apply not applying changes by @SuperKali  
+- ⚙️ `luci-app-fan`: migrate config page from lua cbi to js client-side view by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🔄 update-script: show other tracks and allow config preserve on cross-version by @SuperKali  
+- 🧹 chore: remove ledtrig-netdev kernel patch, no longer needed by @SuperKali  
+- 🐛 use directory listing url format for firmware download link by @SuperKali  
+- ➕ feat(ci): add ftp retention policy, keep max 4 builds per track and cleanup old ones by @SuperKali  
+- 📢 feat(changelog): support multiple feed branches for multi-version by @SuperKali  
+- 🐛 fix(ci): exclude sdk/imagebuilder/toolchain from firmware upload, include all other target files by @SuperKali  
+- 🐛 fix(ci): install lftp before ftp upload if not available by @SuperKali  
+- 🏗️ revert(config): remove ccache, causes liblzo build failure by @SuperKali  
+- 🐛 fix(ci): use ubuntu-latest for x64 builds, self-hosted for arm64 by @SuperKali  
+- 🐛 fix(ci): pre-cleanup old build dir and sudo rm for ccache leftovers by @SuperKali  
+- 🐛 fix(ci): handle flat artifact layout in sdk upload step by @SuperKali  
+- ⚙️ feat(config): enable ccache for faster rebuilds by @SuperKali  
+- ♻️ refactor: resolve versions from version.json instead of hardcoding by @SuperKali  
+- 🐛 use semicolon for feed branch syntax and bump nightly to 25.12.0-rc1 by @SuperKali  
+- 🔼 fota from repo.superkali.me with cross-version upgrade by @SuperKali  
+- 🛠️ multi-version checker, promotion workflow and sdk trigger by @SuperKali  
+- 🏗️ reusable build workflow with ftp firmware upload by @SuperKali  
+- ➕ add version-aware patch-manager, metadata and feed branch support by @SuperKali  
+- ♻️ refactor: restructure config and patches for multi-version support by @SuperKali  
+- 🔼 build(deps): bump softprops/action-gh-release from 2.5.0 to 2.6.1 (#122) by @dependabot[bot]  
+- 🔼 build(deps): bump actions/upload-artifact from 6 to 7 (#120) by @dependabot[bot]  
+- 🔼 build(deps): bump actions/download-artifact from 7 to 8 (#121) by @dependabot[bot]  
+- 🔄 update immortalwrt stable to version 24.10.5 by @SuperKali  
+- 🐛 fix(ci): improve sdk artifact copy logic with debugging and fallback paths by @SuperKali  
+- 🔼 bump immortalwrt to version v24.10.5 (#119) by @SuperKali  
+
+---
+
 ## [2025-12-21]
 
 ### 🧩 Additional Packages
@@ -428,4 +478,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **December 21, 2025**
+📅 Release date: **March 26, 2026**
