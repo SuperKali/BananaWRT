@@ -279,9 +279,26 @@ jobs:
           .versions[$vl].tracks[$track] //= {"latest_build":"","immortalwrt_version":"","builds":[]} |
           .versions[$vl].tracks[$track].latest_build = $latest |
           .versions[$vl].tracks[$track].immortalwrt_version = $iwrt_ver |
-          .versions[$vl].tracks[$track].builds = ([$build] + .versions[$vl].tracks[$track].builds) |
-          .versions[$vl].tracks[$track].builds = .versions[$vl].tracks[$track].builds[:5]
+          .versions[$vl].tracks[$track].builds = ([$build] + .versions[$vl].tracks[$track].builds)
         ')
+
+        # Identify builds to remove (keep max 4 per track)
+        REMOVED_BUILDS=$(echo "$UPDATED_INDEX" | jq -r \
+          --arg vl "${{ env.VERSION_LINE }}" \
+          --arg track "${{ inputs.release_type }}" '
+          .versions[$vl].tracks[$track].builds[4:] | .[].tag
+        ')
+
+        # Trim index to max 4 builds
+        UPDATED_INDEX=$(echo "$UPDATED_INDEX" | jq \
+          --arg vl "${{ env.VERSION_LINE }}" \
+          --arg track "${{ inputs.release_type }}" '
+          .versions[$vl].tracks[$track].builds = .versions[$vl].tracks[$track].builds[:4]
+        ')
+
+        echo "$REMOVED_BUILDS" > /tmp/builds_to_remove.txt
+        echo "Builds to remove from FTP:"
+        cat /tmp/builds_to_remove.txt
 
         mkdir -p ftp-upload/bananawrt/firmware
         echo "$UPDATED_INDEX" | jq '.' > ftp-upload/bananawrt/firmware/firmware-index.json
@@ -296,6 +313,26 @@ jobs:
         mirror --reverse --verbose --only-newer ftp-upload/bananawrt/firmware /bananawrt/firmware;
         quit
         "
+
+    - name: Cleanup old builds from FTP
+      if: env.UPLOAD_RELEASE == 'true'
+      run: |
+        if [ ! -s /tmp/builds_to_remove.txt ]; then
+          echo "No old builds to remove."
+          exit 0
+        fi
+
+        LFTP_CMDS="set ftp:ssl-allow no; open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} ${{ secrets.FTP_HOST }};"
+        while IFS= read -r build_tag; do
+          [ -z "$build_tag" ] && continue
+          REMOTE_DIR="/bananawrt/firmware/${{ env.VERSION_LINE }}/${{ inputs.release_type }}/${build_tag}"
+          echo "Removing: $REMOTE_DIR"
+          LFTP_CMDS="${LFTP_CMDS} rm -rf ${REMOTE_DIR};"
+        done < /tmp/builds_to_remove.txt
+        LFTP_CMDS="${LFTP_CMDS} quit"
+
+        lftp -c "$LFTP_CMDS"
+        echo "Old builds cleaned up."
 
     - name: Delete workflow runs
       uses: Mattraks/delete-workflow-runs@v2.1.0
