@@ -167,6 +167,7 @@ if [ "$MODE" = "fota" ]; then
 
     CROSS_VERSION=false
     TOTAL_OPTIONS=0
+    CURRENT_TRACK_END=0
 
     if [ "$BUILD_COUNT" -gt 0 ]; then
         echo ""
@@ -177,9 +178,32 @@ if [ "$MODE" = "fota" ]; then
             echo -e "\033[1;33m$((i+1)))\033[0m \033[1;36m$tag\033[0m - \033[1;32mFirmware: $iwrt_ver\033[0m - \033[1;35m$BANANA_CURRENT_TYPE\033[0m"
             TOTAL_OPTIONS=$((TOTAL_OPTIONS + 1))
         done
+        CURRENT_TRACK_END=$TOTAL_OPTIONS
     else
         echo ""
         log_warning "No builds available for $BANANA_CURRENT_LINE ($BANANA_CURRENT_TYPE)."
+    fi
+
+    # Show other tracks for the same version line
+    OTHER_TRACKS=$(echo "$INDEX_JSON" | jq -r ".versions[\"$BANANA_CURRENT_LINE\"].tracks | keys[] | select(. != \"$BANANA_CURRENT_TYPE\")")
+    OTHER_TRACK_OPTIONS=""
+    if [ -n "$OTHER_TRACKS" ]; then
+        echo ""
+        echo -e "\033[1;35mOther tracks for $BANANA_CURRENT_LINE:\033[0m"
+        for track in $OTHER_TRACKS; do
+            TRACK_BUILDS=$(echo "$INDEX_JSON" | jq -r ".versions[\"$BANANA_CURRENT_LINE\"].tracks[\"$track\"].builds // []")
+            TRACK_COUNT=$(echo "$TRACK_BUILDS" | jq 'length')
+            TRACK_DISPLAY=2
+            [ "$TRACK_COUNT" -lt "$TRACK_DISPLAY" ] && TRACK_DISPLAY="$TRACK_COUNT"
+            for i in $(seq 0 $((TRACK_DISPLAY - 1))); do
+                tag=$(echo "$TRACK_BUILDS" | jq -r ".[$i].tag")
+                iwrt_ver=$(echo "$TRACK_BUILDS" | jq -r ".[$i].immortalwrt_version")
+                TOTAL_OPTIONS=$((TOTAL_OPTIONS + 1))
+                OTHER_TRACK_OPTIONS="${OTHER_TRACK_OPTIONS}${TOTAL_OPTIONS}:${BANANA_CURRENT_LINE}:${track}:${i}
+"
+                echo -e "\033[1;33m${TOTAL_OPTIONS})\033[0m \033[1;36m$tag\033[0m - \033[1;32mFirmware: $iwrt_ver\033[0m - \033[1;35m$track\033[0m"
+            done
+        done
     fi
 
     # Show cross-version upgrade options
@@ -212,11 +236,21 @@ if [ "$MODE" = "fota" ]; then
     read -r selection
     [ -z "$selection" ] && selection=1
 
-    # Determine if cross-version selection
-    if [ "$selection" -gt "$DISPLAY_COUNT" ] 2>/dev/null && [ -n "$CROSS_OPTIONS" ]; then
+    # Determine selection type
+    SELECTED_OTHER_TRACK=$(echo "$OTHER_TRACK_OPTIONS" | grep "^${selection}:")
+    SELECTED_CROSS=$(echo "$CROSS_OPTIONS" | grep "^${selection}:")
+
+    if [ -n "$SELECTED_OTHER_TRACK" ]; then
+        # Other track of same version selected
+        OT_LINE=$(echo "$SELECTED_OTHER_TRACK" | cut -d: -f2)
+        OT_TRACK=$(echo "$SELECTED_OTHER_TRACK" | cut -d: -f3)
+        OT_IDX=$(echo "$SELECTED_OTHER_TRACK" | cut -d: -f4)
+        BUILDS=$(echo "$INDEX_JSON" | jq -r ".versions[\"$OT_LINE\"].tracks[\"$OT_TRACK\"].builds // []")
+        index=$OT_IDX
+    elif [ -n "$SELECTED_CROSS" ]; then
         # Cross-version upgrade selected
-        CROSS_LINE=$(echo "$CROSS_OPTIONS" | grep "^${selection}:" | cut -d: -f2)
-        CROSS_TRACK=$(echo "$CROSS_OPTIONS" | grep "^${selection}:" | cut -d: -f3)
+        CROSS_LINE=$(echo "$SELECTED_CROSS" | cut -d: -f2)
+        CROSS_TRACK=$(echo "$SELECTED_CROSS" | cut -d: -f3)
 
         if [ -z "$CROSS_LINE" ]; then
             log_error "Invalid selection."
@@ -224,24 +258,27 @@ if [ "$MODE" = "fota" ]; then
         fi
 
         echo ""
-        echo -e "\033[1;31m============================================================\033[0m"
-        echo -e "\033[1;31m  CROSS-VERSION UPGRADE: $BANANA_CURRENT_LINE -> $CROSS_LINE\033[0m"
-        echo -e "\033[1;31m  This will ERASE ALL configuration (factory reset).\033[0m"
-        echo -e "\033[1;31m============================================================\033[0m"
+        echo -e "\033[1;33m============================================================\033[0m"
+        echo -e "\033[1;33m  CROSS-VERSION UPGRADE: $BANANA_CURRENT_LINE -> $CROSS_LINE\033[0m"
+        echo -e "\033[1;33m============================================================\033[0m"
         echo ""
-        echo -e "\033[1;35mType 'YES' to confirm:\033[0m"
-        read -r confirm
-        if [ "$confirm" != "YES" ]; then
-            log_info "Cross-version upgrade cancelled."
-            exit 0
+        echo -e "\033[1;35mDo you want to preserve configuration? (y/n, default y):\033[0m"
+        read -r keep_config
+        if [ "$keep_config" = "n" ] || [ "$keep_config" = "N" ]; then
+            RESET=1
+            log_warning "Configuration will be erased (factory reset)."
+        else
+            log_info "Configuration will be preserved."
         fi
 
         CROSS_VERSION=true
-        RESET=1
         BUILDS=$(echo "$INDEX_JSON" | jq -r ".versions[\"$CROSS_LINE\"].tracks[\"$CROSS_TRACK\"].builds // []")
         index=0
-    else
+    elif [ "$selection" -le "$CURRENT_TRACK_END" ] 2>/dev/null; then
         index=$((selection - 1))
+    else
+        log_error "Invalid selection."
+        exit 1
     fi
 
     # Get selected build info
