@@ -217,7 +217,7 @@ jobs:
             -e "s|{{RELEASE_DATE}}|$(date '+%Y-%m-%d %H:%M:%S')|g" \
             -e "s|{{TARGET_DEVICES}}|${target_devices}|g" \
             -e "s|{{VERSION_LINE}}|${{ env.VERSION_LINE }}|g" \
-            -e "s|{{DOWNLOAD_URL}}|https://repo.superkali.me/bananawrt/firmware/${{ env.VERSION_LINE }}/${{ inputs.release_type }}/${{ env.RELEASE_DATE }}/|g" \
+            -e "s|{{DOWNLOAD_URL}}|https://repo.superkali.me/?dir=bananawrt/firmware/${{ env.VERSION_LINE }}/${{ inputs.release_type }}/${{ env.RELEASE_DATE }}|g" \
             templates/release-notes-template.md > release.txt
 
         echo "KERNEL_VERSION=$kernel_version" >> $GITHUB_ENV
