@@ -225,7 +225,7 @@ jobs:
 
     - name: Publish Firmware Release
       if: env.UPLOAD_RELEASE == 'true'
-      uses: softprops/action-gh-release@v2.6.1
+      uses: softprops/action-gh-release@v3.0.0
       with:
         tag_name: ${{ env.VERSION_LINE }}-${{ env.RELEASE_DATE }}
         body_path: release.txt
