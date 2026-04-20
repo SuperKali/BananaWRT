@@ -12,6 +12,15 @@ name: BananaWRT Builder (Nightly)
 on:
   repository_dispatch:
   workflow_dispatch:
+    inputs:
+      architecture:
+        description: 'Runner architecture (ARM64 self-hosted or X64 GitHub-hosted)'
+        required: false
+        type: choice
+        options:
+          - ARM64
+          - X64
+        default: ARM64
   schedule:
     - cron: 0 0 * * 0
 
@@ -42,4 +51,5 @@ jobs:
     with:
       immortalwrt_version: ${{ needs.resolve.outputs.version }}
       release_type: nightly
+      architecture: ${{ github.event.inputs.architecture || 'ARM64' }}
     secrets: inherit
