@@ -3,7 +3,7 @@
   "branch": "24.10.5",
   "status": "active",
   "tracks": ["stable"],
-  "feed_branch": "v24.10",
+  "feed_branch": "main",
   "checker_pattern": "v24\\.10\\.",
   "packages": [
     "atc-apn-database",

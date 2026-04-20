@@ -5,7 +5,7 @@
   "tracks": [
     "nightly"
   ],
-  "feed_branch": "v25.12",
+  "feed_branch": "main",
   "checker_pattern": "v25\\.12\\.",
   "packages": [
     "atc-apn-database",

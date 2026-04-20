@@ -26,17 +26,14 @@ jobs:
 
     - name: Checkout packages repositories (all version branches)
       run: |
-        for vf in config/*/version.json; do
-          FEED_BRANCH=$(jq -r '.feed_branch' "$vf")
-          VERSION_LINE=$(jq -r '.version_line' "$vf")
-          STATUS=$(jq -r '.status' "$vf")
-          [ "$STATUS" != "active" ] && continue
-          echo "Cloning openwrt-packages branch $FEED_BRANCH for $VERSION_LINE..."
+        BRANCHES=$(jq -r 'select(.status == "active") | .feed_branch' config/*/version.json | sort -u)
+        for FEED_BRANCH in $BRANCHES; do
+          echo "Cloning openwrt-packages branch $FEED_BRANCH..."
           git clone --branch "$FEED_BRANCH" --single-branch \
             https://x-access-token:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/SuperKali/openwrt-packages.git \
-            "${{ github.workspace }}/openwrt-packages-${VERSION_LINE}" || echo "Warning: branch $FEED_BRANCH not found"
+            "${{ github.workspace }}/openwrt-packages-${FEED_BRANCH}" || echo "Warning: branch $FEED_BRANCH not found"
         done
-        
+
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
@@ -63,7 +60,7 @@ jobs:
       run: |
         # Build comma-separated list of package repo paths
         PATHS=""
-        for dir in ${{ github.workspace }}/openwrt-packages-v*/; do
+        for dir in ${{ github.workspace }}/openwrt-packages-*/; do
           [ -d "$dir/.git" ] || continue
           [ -n "$PATHS" ] && PATHS="${PATHS},"
           PATHS="${PATHS}${dir}"
@@ -84,7 +81,7 @@ jobs:
     - name: Cleanup
       if: always()
       run: |
-        rm -rf ${{ github.workspace }}/openwrt-packages-v*
+        rm -rf ${{ github.workspace }}/openwrt-packages-*
 
     - name: Create Pull Request
       if: steps.check-changes.outputs.HAS_CHANGES == 'true'
