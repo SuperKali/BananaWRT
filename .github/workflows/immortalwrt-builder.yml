@@ -1,14 +1,17 @@
 #
-# https://github.com/P3TERX/Actions-OpenWrt
-#
 # File: .github/workflows/immortalwrt-builder.yml
-# Description: Reusable workflow to build BananaWRT firmware
+# Description: Reusable workflow to build BananaWRT firmware.
+#              Delegates the actual build pipeline to ./compile.sh and runs it
+#              inside the pre-built BananaWRT builder container. Provides
+#              runner auto-resolution (self-hosted vs GitHub-hosted) and
+#              multi-layer build caching.
 #
 # Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
-# Copyright (c) 2024-2025 SuperKali <hello@superkali.me>
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
 #
 # This is free software, licensed under the MIT License.
 # See /LICENSE for more information.
+#
 
 name: BananaWRT Builder (Reusable)
 
@@ -33,6 +36,11 @@ on:
         type: string
         default: ''
         description: 'Number of threads for compilation'
+      image_ref:
+        required: false
+        type: string
+        default: 'ghcr.io/superkali/bananawrt-builder:latest'
+        description: 'BananaWRT builder container image reference'
     secrets:
       PERSONAL_ACCESS_TOKEN:
         required: false
@@ -44,16 +52,6 @@ on:
         required: false
 
 env:
-  REPO_URL: https://github.com/immortalwrt/immortalwrt
-  REPO_BRANCH: ${{ inputs.immortalwrt_version }}
-  BANANAWRT_RELEASE: ${{ inputs.release_type }}
-  FEEDS_CONF: feeds.conf.default
-  REPO_SCRIPT: scripts/builder/custom-repository.sh
-  STOCK_PACKAGES: scripts/builder/remove-stock-packages.sh
-  UPLOAD_BIN_DIR: false
-  UPLOAD_PACKAGE_DIR: true
-  UPLOAD_FIRMWARE: true
-  UPLOAD_RELEASE: true
   TZ: Europe/Rome
 
 jobs:
@@ -61,314 +59,183 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       runner: ${{ steps.pick.outputs.runner }}
+      version_line: ${{ steps.pick.outputs.version_line }}
+      release_date: ${{ steps.pick.outputs.release_date }}
     steps:
-    - name: Detect available runner
-      id: pick
-      env:
-        GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        ARCH: ${{ inputs.architecture }}
-      run: |
-        COUNT=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100" 2>/dev/null \
-          | jq --arg arch "$ARCH" '[.runners[] | select(.status == "online") | select([.labels[].name] | contains(["self-hosted", $arch]))] | length' \
-          || echo "0")
-        if [ "$COUNT" -gt 0 ]; then
-          echo "Found $COUNT online self-hosted $ARCH runner(s); using self-hosted."
-          echo "runner=[\"self-hosted\",\"$ARCH\"]" >> "$GITHUB_OUTPUT"
-        elif [ "$ARCH" = "ARM64" ]; then
-          echo "No self-hosted ARM64 runner online; falling back to ubuntu-24.04-arm."
-          echo 'runner="ubuntu-24.04-arm"' >> "$GITHUB_OUTPUT"
-        else
-          echo "No self-hosted X64 runner online; falling back to ubuntu-latest."
-          echo 'runner="ubuntu-latest"' >> "$GITHUB_OUTPUT"
-        fi
+      - name: Detect available runner
+        id: pick
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          ARCH: ${{ inputs.architecture }}
+        run: |
+          FREE=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100" 2>/dev/null \
+            | jq --arg arch "$ARCH" '[.runners[] | select(.status == "online") | select(.busy == false) | select([.labels[].name] | contains(["self-hosted", $arch]))] | length' \
+            || echo "0")
+          if [ "$FREE" -gt 0 ]; then
+            echo "Found $FREE free self-hosted $ARCH runner(s); using self-hosted."
+            echo "runner=[\"self-hosted\",\"$ARCH\"]" >> "$GITHUB_OUTPUT"
+          elif [ "$ARCH" = "ARM64" ]; then
+            echo "No free self-hosted ARM64 runner; falling back to ubuntu-24.04-arm."
+            echo 'runner="ubuntu-24.04-arm"' >> "$GITHUB_OUTPUT"
+          else
+            echo "No free self-hosted X64 runner; falling back to ubuntu-latest."
+            echo 'runner="ubuntu-latest"' >> "$GITHUB_OUTPUT"
+          fi
+          VERSION_LINE="v$(echo '${{ inputs.immortalwrt_version }}' | grep -oP '^\d+\.\d+')"
+          echo "version_line=$VERSION_LINE" >> "$GITHUB_OUTPUT"
+          echo "release_date=$(date +'%Y.%m.%d-%H%M')" >> "$GITHUB_OUTPUT"
 
   build:
+    name: Build ${{ needs.resolve-runner.outputs.version_line }}/${{ inputs.release_type }}
     needs: resolve-runner
     runs-on: ${{ fromJSON(needs.resolve-runner.outputs.runner) }}
+    container:
+      image: ${{ inputs.image_ref }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --user builder
+    env:
+      BANANAWRT_VERSION_LINE: ${{ needs.resolve-runner.outputs.version_line }}
+      BANANAWRT_TRACK: ${{ inputs.release_type }}
+      BANANAWRT_IMMORTALWRT_VER: ${{ inputs.immortalwrt_version }}
+      BANANAWRT_ARCH: ${{ inputs.architecture }}
+      BANANAWRT_RELEASE_DATE: ${{ needs.resolve-runner.outputs.release_date }}
+      BANANAWRT_JOBS: ${{ inputs.nproc }}
+      BANANAWRT_CI: '1'
+      BANANAWRT_CCACHE: '1'
+      BANANAWRT_CCACHE_MAX: '12G'
     steps:
-    - name: Cleanup previous build
-      run: |
-        sudo rm -rf "${{ runner.workspace }}/immortalwrt"
+      - name: Clean previous workspace
+        run: |
+          sudo rm -rf workspace ftp-upload 2>/dev/null || rm -rf workspace ftp-upload 2>/dev/null || true
 
-    - name: Checkout Source Code
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-    - name: Compute Version Metadata
-      run: |
-        VERSION_LINE="v$(echo '${{ inputs.immortalwrt_version }}' | grep -oP '^\d+\.\d+')"
-        echo "VERSION_LINE=$VERSION_LINE" >> $GITHUB_ENV
-        echo "CONFIG_FILE=config/${VERSION_LINE}/${{ inputs.release_type }}/.config" >> $GITHUB_ENV
-        FEED_BRANCH=$(jq -r '.feed_branch' "config/${VERSION_LINE}/version.json")
-        echo "FEED_BRANCH=$FEED_BRANCH" >> $GITHUB_ENV
+      - name: Authenticate git (private upstream access)
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          git config --global user.name  'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          git config --global --add safe.directory '*'
+          printf 'machine github.com login %s\n' "${GITHUB_TOKEN:-anonymous}" > "$HOME/.netrc"
+          chmod 600 "$HOME/.netrc"
 
-    - name: Set Up Build Environment
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        /bin/bash .github/scripts/setup-env.sh setup
+      - name: Compute cache keys
+        id: cache
+        run: |
+          # Use version_line + track + .config hash as the primary cache axis.
+          CONFIG_HASH=$(sha256sum "config/${BANANAWRT_VERSION_LINE}/${BANANAWRT_TRACK}/.config" | cut -c1-16)
+          VERSION_HASH=$(sha256sum "config/${BANANAWRT_VERSION_LINE}/version.json" | cut -c1-16)
+          PATCH_HASH=$(find "patch" -type f 2>/dev/null | sort | xargs -r sha256sum | sha256sum | cut -c1-16)
+          PATCH_HASH="${PATCH_HASH:-none}"
+          BASE="${BANANAWRT_VERSION_LINE}-${BANANAWRT_TRACK}-${BANANAWRT_IMMORTALWRT_VER}"
+          echo "dl=dl-${BASE}-${VERSION_HASH}" >> "$GITHUB_OUTPUT"
+          echo "ccache=ccache-${BASE}-${CONFIG_HASH}" >> "$GITHUB_OUTPUT"
+          echo "feeds=feeds-${BASE}-${VERSION_HASH}" >> "$GITHUB_OUTPUT"
+          echo "staging=staging-${BASE}-${CONFIG_HASH}-${PATCH_HASH}" >> "$GITHUB_OUTPUT"
 
-    - name: Set timezone on the host
-      run: sudo timedatectl set-timezone "$TZ" || echo "Failed to set timezone, proceeding anyway."
+      - name: Restore dl/ cache
+        uses: actions/cache@v4
+        with:
+          path: workspace/immortalwrt/dl
+          key: ${{ steps.cache.outputs.dl }}
+          restore-keys: |
+            dl-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
+            dl-${{ env.BANANAWRT_VERSION_LINE }}-
 
-    - name: Set Release data
-      run: |
-        echo "RELEASE_DATE=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_ENV
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: workspace/immortalwrt/.ccache
+          key: ${{ steps.cache.outputs.ccache }}
+          restore-keys: |
+            ccache-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
+            ccache-${{ env.BANANAWRT_VERSION_LINE }}-
 
-    - name: Authenticate GitHub
-      env:
-        GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-      run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        echo "machine github.com login ${{ secrets.PERSONAL_ACCESS_TOKEN }}" > ~/.netrc
-        chmod 600 ~/.netrc
+      - name: Restore feeds/ cache
+        uses: actions/cache@v4
+        with:
+          path: workspace/immortalwrt/feeds
+          key: ${{ steps.cache.outputs.feeds }}
+          restore-keys: |
+            feeds-${{ env.BANANAWRT_VERSION_LINE }}-
 
-    - name: Clone ImmortalWRT Repository
-      working-directory: ${{ runner.workspace }}
-      run: |
-        git clone $REPO_URL -b v"$REPO_BRANCH" immortalwrt
+      - name: Restore staging_dir cache
+        uses: actions/cache@v4
+        with:
+          path: workspace/immortalwrt/staging_dir
+          key: ${{ steps.cache.outputs.staging }}
+          restore-keys: |
+            staging-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
 
-    - name: Apply Custom Patch Files
-      run: |
-        chmod +x scripts/utils/patch-manager.sh
-        cd ${{ runner.workspace }}/immortalwrt
-        $GITHUB_WORKSPACE/scripts/utils/patch-manager.sh ${{ env.REPO_BRANCH }} ${{ env.BANANAWRT_RELEASE }} ${{ runner.workspace }}/immortalwrt
+      - name: Run BananaWRT compile.sh
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          ./compile.sh --ci --no-docker \
+            --version-line "${BANANAWRT_VERSION_LINE}" \
+            --track "${BANANAWRT_TRACK}" \
+            --arch "${BANANAWRT_ARCH}" \
+            --immortalwrt-version "${BANANAWRT_IMMORTALWRT_VER}" \
+            ${BANANAWRT_JOBS:+--jobs "${BANANAWRT_JOBS}"}
 
-    - name: Apply Custom Feeds Configuration
-      run: |
-        [ -e ${{ env.FEEDS_CONF }} ] && mv ${{ env.FEEDS_CONF }} ${{ runner.workspace }}/immortalwrt/feeds.conf.default
-        chmod +x ${{ env.REPO_SCRIPT }}
-        cd ${{ runner.workspace }}/immortalwrt
-        $GITHUB_WORKSPACE/${{ env.REPO_SCRIPT }} ${{ env.FEED_BRANCH }}
+      - name: Surface build summary
+        if: always()
+        run: |
+          FIRMWARE_DIR=$(ls -d workspace/immortalwrt/bin/targets/*/* 2>/dev/null | head -n1 || true)
+          {
+            echo '## BananaWRT build'
+            echo
+            echo '| Field | Value |'
+            echo '|---|---|'
+            echo "| Version line | \`${BANANAWRT_VERSION_LINE}\` |"
+            echo "| Track | \`${BANANAWRT_TRACK}\` |"
+            echo "| ImmortalWRT | \`${BANANAWRT_IMMORTALWRT_VER}\` |"
+            echo "| Architecture | \`${BANANAWRT_ARCH}\` |"
+            echo "| Image | \`${{ inputs.image_ref }}\` |"
+            echo "| Release tag | \`${BANANAWRT_VERSION_LINE}-${BANANAWRT_RELEASE_DATE}\` |"
+            if [ -n "$FIRMWARE_DIR" ]; then
+              echo
+              echo '### Artefacts'
+              echo '```'
+              ls -lh "$FIRMWARE_DIR" || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
-    - name: Update and Install Package Feeds
-      working-directory: ${{ runner.workspace }}/immortalwrt
-      run: |
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
+      - name: Upload firmware artefact
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: BananaWRT_firmware_${{ needs.resolve-runner.outputs.release_date }}
+          path: workspace/immortalwrt/bin/targets/*/*/*
+          if-no-files-found: warn
 
-    - name: Apply Custom Configuration
-      run: |
-        [ -e files ] && mv files ${{ runner.workspace }}/immortalwrt/files
-        [ -e ${{ env.CONFIG_FILE }} ] && mv ${{ env.CONFIG_FILE }} ${{ runner.workspace }}/immortalwrt/.config
-        chmod +x ${{ env.STOCK_PACKAGES }}
-        cd ${{ runner.workspace }}/immortalwrt
-        $GITHUB_WORKSPACE/${{ env.STOCK_PACKAGES }}
-        ./scripts/feeds install -p additional_pack -a
+      - name: Upload additional_pack artefacts
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: BananaWRT_packages_${{ needs.resolve-runner.outputs.release_date }}
+          path: workspace/immortalwrt/bin/packages/*/additional_pack/*.ipk
+          if-no-files-found: ignore
 
-    - name: Generate BananaWRT Metadata
-      working-directory: ${{ runner.workspace }}/immortalwrt
-      env:
-        RELEASE_DATE: ${{ env.RELEASE_DATE }}
-        GITHUB_SHA: ${{ github.sha }}
-        GITHUB_REF: ${{ github.ref }}
-        REPO_BRANCH: ${{ inputs.immortalwrt_version }}
-      run: |
-        chmod +x $GITHUB_WORKSPACE/scripts/utils/metadata-generator.sh
-        $GITHUB_WORKSPACE/scripts/utils/metadata-generator.sh
+      - name: Prune workflow history
+        if: success()
+        uses: Mattraks/delete-workflow-runs@v2.1.0
+        with:
+          retain_days: 0
+          keep_minimum_runs: 7
 
-    - name: Diffconfig with current configuration
-      working-directory: ${{ runner.workspace }}/immortalwrt
-      run: |
-        ./scripts/diffconfig.sh > diffconfig
-        curl -sf https://downloads.immortalwrt.org/releases/$REPO_BRANCH/targets/mediatek/filogic/config.buildinfo || { echo "::warning::config.buildinfo not available for $REPO_BRANCH"; true; }
-        cat diffconfig >> config.buildinfo
-        mv config.buildinfo .config
-        [ -n "$REPO_BRANCH" ] && sed -i \
-          -e 's|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO="https://downloads.immortalwrt.org/releases/'"$REPO_BRANCH"'"|g' \
-          .config
-
-    - name: Download Required Packages
-      working-directory: ${{ runner.workspace }}/immortalwrt
-      run: |
-        make defconfig
-        make download -j$(nproc)
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
-
-    - name: Build Firmware
-      working-directory: ${{ runner.workspace }}/immortalwrt
-      run: |
-        if [ -n "${{ inputs.nproc }}" ]; then
-          make -j${{ inputs.nproc }} || make -j1 V=s
-        else
-          make -j$(nproc) || make -j1 V=s
-        fi
-        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
-
-    - name: Check Disk Usage
-      run: df -hT
-
-    - name: Upload Binary Files
-      if: env.UPLOAD_BIN_DIR == 'true'
-      uses: actions/upload-artifact@v7
-      with:
-        name: BananaWRT_bin${{ env.RELEASE_DATE }}
-        path: ${{ runner.workspace }}/immortalwrt/bin
-
-    - name: Upload Custom Packages
-      if: env.UPLOAD_PACKAGE_DIR == 'true'
-      uses: actions/upload-artifact@v7
-      with:
-        name: BananaWRT_packages${{ env.RELEASE_DATE }}
-        path: ${{ runner.workspace }}/immortalwrt/bin/packages/*/additional_pack/*.ipk
-
-    - name: Prepare Firmware for Upload
-      run: |
-        cd ${{ runner.workspace }}/immortalwrt/bin/targets/*/*
-        rm -rf packages
-        rm -f *-sdk-* *-imagebuilder-* *-toolchain-* llvm-bpf-*
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-
-    - name: Upload Firmware Files
-      if: env.UPLOAD_FIRMWARE == 'true'
-      uses: actions/upload-artifact@v7
-      with:
-        name: BananaWRT_firmware${{ env.RELEASE_DATE }}
-        path: ${{ env.FIRMWARE }}
-
-    - name: Create Release Tag
-      if: env.UPLOAD_RELEASE == 'true'
-      run: |
-        kernel_version=$(find ${{ runner.workspace }}/immortalwrt/build_dir/target-*/linux-*/ -type d -regex '.*/linux-[0-9]+\.[0-9]+.*' | head -n 1 | sed -E 's|.*/linux-||')
-        target_devices=$(grep '^CONFIG_TARGET.*DEVICE.*=y' ${{ runner.workspace }}/immortalwrt/.config | sed -r 's/.*DEVICE_(.*)=y/\1/')
-
-        release_type='${{ inputs.release_type }}'
-        # Capitalize first letter
-        release_type="$(echo "${release_type:0:1}" | tr '[:lower:]' '[:upper:]')${release_type:1}"
-
-        sed -e "s|{{BANANAWRT_KERNEL}}|${kernel_version}|g" \
-            -e "s|{{RELEASE_TYPE}}|${release_type}|g" \
-            -e "s|{{BANANAWRT_VERSION}}|${REPO_BRANCH}|g" \
-            -e "s|{{RELEASE_DATE}}|$(date '+%Y-%m-%d %H:%M:%S')|g" \
-            -e "s|{{TARGET_DEVICES}}|${target_devices}|g" \
-            -e "s|{{VERSION_LINE}}|${{ env.VERSION_LINE }}|g" \
-            -e "s|{{DOWNLOAD_URL}}|https://repo.superkali.me/?dir=bananawrt/firmware/${{ env.VERSION_LINE }}/${{ inputs.release_type }}/${{ env.RELEASE_DATE }}|g" \
-            templates/release-notes-template.md > release.txt
-
-        echo "KERNEL_VERSION=$kernel_version" >> $GITHUB_ENV
-        echo "TARGET_DEVICES=$target_devices" >> $GITHUB_ENV
-
-    - name: Publish Firmware Release
-      if: env.UPLOAD_RELEASE == 'true'
-      uses: softprops/action-gh-release@v3.0.0
-      with:
-        tag_name: ${{ env.VERSION_LINE }}-${{ env.RELEASE_DATE }}
-        body_path: release.txt
-
-    - name: Upload Firmware to repo.superkali.me
-      if: env.UPLOAD_RELEASE == 'true'
-      run: |
-        FIRMWARE_DIR="ftp-upload/bananawrt/firmware/${{ env.VERSION_LINE }}/${{ inputs.release_type }}/${{ env.RELEASE_DATE }}"
-        mkdir -p "$FIRMWARE_DIR"
-
-        # Copy firmware files
-        cp ${{ env.FIRMWARE }}/* "$FIRMWARE_DIR/"
-
-        # Generate firmware-info.json for this build
-        cd "$FIRMWARE_DIR"
-
-        # Build files JSON with all firmware files
-        FILES_JSON="{"
-        for file in *; do
-          [ -f "$file" ] || continue
-          sha256=$(sha256sum "$file" | awk '{print $1}')
-          size=$(stat -c%s "$file")
-          FILES_JSON="${FILES_JSON}\"${file}\":{\"sha256\":\"${sha256}\",\"size\":${size}},"
-        done
-        FILES_JSON="${FILES_JSON%,}}"
-
-        printf '{"tag":"%s","version_line":"%s","track":"%s","immortalwrt_version":"%s","kernel_version":"%s","build_date":"%s","commit":"%s","files":%s}' \
-          "${{ env.RELEASE_DATE }}" \
-          "${{ env.VERSION_LINE }}" \
-          "${{ inputs.release_type }}" \
-          "${{ inputs.immortalwrt_version }}" \
-          "${{ env.KERNEL_VERSION }}" \
-          "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-          "${{ github.sha }}" \
-          "$FILES_JSON" | jq '.' > firmware-info.json
-        cd $GITHUB_WORKSPACE
-
-        # Download existing firmware-index.json or create new
-        EXISTING_INDEX=$(curl -sf "https://repo.superkali.me/bananawrt/firmware/firmware-index.json" || echo '{"versions":{}}')
-
-        # Update index with new build using jq
-        NEW_BUILD="{\"tag\":\"${{ env.RELEASE_DATE }}\",\"date\":\"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\",\"immortalwrt_version\":\"${{ inputs.immortalwrt_version }}\",\"url\":\"https://repo.superkali.me/bananawrt/firmware/${{ env.VERSION_LINE }}/${{ inputs.release_type }}/${{ env.RELEASE_DATE }}/\"}"
-
-        UPDATED_INDEX=$(echo "$EXISTING_INDEX" | jq \
-          --arg vl "${{ env.VERSION_LINE }}" \
-          --arg track "${{ inputs.release_type }}" \
-          --arg latest "${{ env.RELEASE_DATE }}" \
-          --arg iwrt_ver "${{ inputs.immortalwrt_version }}" \
-          --argjson build "$NEW_BUILD" '
-          .versions[$vl] //= {"status":"active","tracks":{}} |
-          .versions[$vl].tracks[$track] //= {"latest_build":"","immortalwrt_version":"","builds":[]} |
-          .versions[$vl].tracks[$track].latest_build = $latest |
-          .versions[$vl].tracks[$track].immortalwrt_version = $iwrt_ver |
-          .versions[$vl].tracks[$track].builds = ([$build] + .versions[$vl].tracks[$track].builds)
-        ')
-
-        # Identify builds to remove (keep max 4 per track)
-        REMOVED_BUILDS=$(echo "$UPDATED_INDEX" | jq -r \
-          --arg vl "${{ env.VERSION_LINE }}" \
-          --arg track "${{ inputs.release_type }}" '
-          .versions[$vl].tracks[$track].builds[4:] | .[].tag
-        ')
-
-        # Trim index to max 4 builds
-        UPDATED_INDEX=$(echo "$UPDATED_INDEX" | jq \
-          --arg vl "${{ env.VERSION_LINE }}" \
-          --arg track "${{ inputs.release_type }}" '
-          .versions[$vl].tracks[$track].builds = .versions[$vl].tracks[$track].builds[:4]
-        ')
-
-        echo "$REMOVED_BUILDS" > /tmp/builds_to_remove.txt
-        echo "Builds to remove from FTP:"
-        cat /tmp/builds_to_remove.txt
-
-        mkdir -p ftp-upload/bananawrt/firmware
-        echo "$UPDATED_INDEX" | jq '.' > ftp-upload/bananawrt/firmware/firmware-index.json
-
-    - name: FTP Upload to repo.superkali.me
-      if: env.UPLOAD_RELEASE == 'true'
-      run: |
-        command -v lftp >/dev/null 2>&1 || sudo apt-get update -qq && sudo apt-get install -y -qq lftp
-        lftp -c "
-        set ftp:ssl-allow no;
-        open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} ${{ secrets.FTP_HOST }};
-        mirror --reverse --verbose --only-newer ftp-upload/bananawrt/firmware /bananawrt/firmware;
-        quit
-        "
-
-    - name: Cleanup old builds from FTP
-      if: env.UPLOAD_RELEASE == 'true'
-      run: |
-        if [ ! -s /tmp/builds_to_remove.txt ]; then
-          echo "No old builds to remove."
-          exit 0
-        fi
-
-        LFTP_CMDS="set ftp:ssl-allow no; open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} ${{ secrets.FTP_HOST }};"
-        while IFS= read -r build_tag; do
-          [ -z "$build_tag" ] && continue
-          REMOTE_DIR="/bananawrt/firmware/${{ env.VERSION_LINE }}/${{ inputs.release_type }}/${build_tag}"
-          echo "Removing: $REMOTE_DIR"
-          LFTP_CMDS="${LFTP_CMDS} rm -rf ${REMOTE_DIR};"
-        done < /tmp/builds_to_remove.txt
-        LFTP_CMDS="${LFTP_CMDS} quit"
-
-        lftp -c "$LFTP_CMDS"
-        echo "Old builds cleaned up."
-
-    - name: Delete workflow runs
-      uses: Mattraks/delete-workflow-runs@v2.1.0
-      with:
-        retain_days: 0
-        keep_minimum_runs: 7
-
-    - name: Cleanup Workspace
-      if: always()
-      run: |
-        sudo rm -rf ~/.netrc
-        sudo rm -rf "${{ runner.workspace }}/immortalwrt"
-        sudo rm -rf ftp-upload
+      - name: Cleanup workspace
+        if: always()
+        run: |
+          rm -rf "$HOME/.netrc" 2>/dev/null || true
+          # Preserve caches — GitHub cache action has already captured what
+          # we need. Dropping build_dir/tmp keeps the runner clean between jobs.
+          rm -rf workspace/immortalwrt/build_dir workspace/immortalwrt/tmp 2>/dev/null || true
