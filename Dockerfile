@@ -1,9 +1,10 @@
 # syntax=docker/dockerfile:1.7
 #
 # BananaWRT builder image
-#   Pre-installs every apt dependency listed in .github/scripts/setup-env.sh so
-#   that CI and local `./compile.sh --docker` can skip the Set Up Build
-#   Environment step. Produced multi-arch (linux/amd64 + linux/arm64) by
+#   Single source of truth for the apt dependencies required to cross-build
+#   ImmortalWRT for mediatek/filogic (Banana Pi R3 Mini). Consumed by
+#   `./compile.sh --docker` locally and by the firmware / SDK workflows via
+#   `container:`. Built multi-arch (linux/amd64 + linux/arm64) from
 #   .github/workflows/docker-image.yml.
 #
 
@@ -39,7 +40,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && dpkg-reconfigure -f noninteractive tzdata \
     && locale-gen C.UTF-8 en_US.UTF-8
 
-# ─── Common build dependencies (mirrors setup-env.sh COMMON_PACKAGES) ───────
+# ─── Common build dependencies ──────────────────────────────────────────────
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update \

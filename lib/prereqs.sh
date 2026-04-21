@@ -75,10 +75,10 @@ check_build_host_requirements() {
     local missing=0
     local bin
     for bin in bison flex gcc g++ patch python3 unzip wget xxd zstd; do
-        check_binary "$bin" 'run .github/scripts/setup-env.sh setup' || missing=$((missing + 1))
+        check_binary "$bin" 'use --docker or install the apt packages listed in Dockerfile' || missing=$((missing + 1))
     done
     if (( missing > 0 )); then
-        exit_with_error "Build environment incomplete — run .github/scripts/setup-env.sh setup (or use --docker)"
+        exit_with_error "Build environment incomplete — re-run with --docker, or install the apt packages declared in ./Dockerfile"
     fi
 }
 

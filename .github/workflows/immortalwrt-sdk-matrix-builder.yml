@@ -1,11 +1,15 @@
 #
 # File: .github/workflows/immortalwrt-sdk-matrix-builder.yml
-# Description: Build BananaWRT SDK in matrix configuration
+# Description: Build the BananaWRT SDK tarballs for multiple architectures.
+#              The build is driven by compile.sh --no-package so we share every
+#              pipeline stage (clone / patch / feeds / config / download /
+#              compile) with the firmware builder; only the SDK-specific
+#              extraction and upload live in this workflow.
 #
-# Copyright (c) 2024-2025 SuperKali <hello@superkali.me>
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
 #
 # This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
+#
 
 name: BananaWRT SDK Matrix Builder
 
@@ -34,14 +38,13 @@ on:
         description: 'Specify the number of threads to use on the compiler'
         required: false
         default: ''
+      image_ref:
+        description: 'BananaWRT builder image reference'
+        required: false
+        type: string
+        default: 'ghcr.io/superkali/bananawrt-builder:latest'
 
 env:
-  REPO_URL: https://github.com/immortalwrt/immortalwrt
-  FEEDS_CONF: feeds.conf.default
-  REPO_SCRIPT: scripts/builder/custom-repository.sh
-  STOCK_PACKAGES: scripts/builder/remove-stock-packages.sh
-  CONFIG_FILE: ''  # Computed dynamically per matrix version
-  UPLOAD_SDK: true
   TZ: Europe/Rome
 
 jobs:
@@ -68,12 +71,10 @@ jobs:
               break
             fi
           done
-
           if [ -z "$VERSION" ]; then
             echo "::error::No version found with track '$TRACK'"
             exit 1
           fi
-
           VERSIONS=$(echo "$VERSION" | jq -R . | jq -s .)
 
           if [ "${{ github.event.inputs.architecture }}" = "ALL" ]; then
@@ -82,13 +83,13 @@ jobs:
             ARCHS='["${{ github.event.inputs.architecture }}"]'
           fi
 
-          # Count free self-hosted runners per arch (online + not busy)
+          # Count free self-hosted runners per arch (online + idle)
           RUNNERS_JSON=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100" 2>/dev/null || echo '{"runners":[]}')
           ARM64_FREE=$(echo "$RUNNERS_JSON" | jq '[.runners[] | select(.status == "online") | select(.busy == false) | select([.labels[].name] | contains(["self-hosted", "ARM64"]))] | length')
           X64_FREE=$(echo "$RUNNERS_JSON"   | jq '[.runners[] | select(.status == "online") | select(.busy == false) | select([.labels[].name] | contains(["self-hosted", "X64"]))]   | length')
           echo "Free self-hosted runners — ARM64: $ARM64_FREE, X64: $X64_FREE"
 
-          # Build include list: first N items per arch go to self-hosted, rest spill to GitHub-hosted
+          # First N items per arch claim self-hosted slots, rest spill to GitHub-hosted
           ARM64_USED=0
           X64_USED=0
           INCLUDES='[]'
@@ -118,298 +119,235 @@ jobs:
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
 
   build-sdk:
+    name: SDK ${{ matrix.arch }} / ${{ matrix.version }}
     needs: prepare
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
-    
+    container:
+      image: ${{ inputs.image_ref || 'ghcr.io/superkali/bananawrt-builder:latest' }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --user builder
+    env:
+      BANANAWRT_ARCH: ${{ matrix.arch }}
+      BANANAWRT_IMMORTALWRT_VER: ${{ matrix.version }}
+      BANANAWRT_JOBS: ${{ inputs.nproc }}
+      BANANAWRT_CCACHE: '1'
+      BANANAWRT_CCACHE_MAX: '12G'
     steps:
-    - name: Cleanup previous build
-      run: |
-        sudo rm -rf "${{ runner.workspace }}/immortalwrt"
+      - name: Clean previous workspace
+        run: |
+          rm -rf workspace sdk-artifacts 2>/dev/null || true
 
-    - name: Checkout Source Code
-      uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-    - name: Compute Version Config Path
-      run: |
-        VERSION_LINE="v$(echo '${{ matrix.version }}' | grep -oP '^\d+\.\d+')"
-        # SDK builds use stable config if available, otherwise nightly
-        if [ -f "config/${VERSION_LINE}/stable/.config" ]; then
-          echo "CONFIG_FILE=config/${VERSION_LINE}/stable/.config" >> $GITHUB_ENV
-        elif [ -f "config/${VERSION_LINE}/nightly/.config" ]; then
-          echo "CONFIG_FILE=config/${VERSION_LINE}/nightly/.config" >> $GITHUB_ENV
-        else
-          echo "::error::No config found for ${VERSION_LINE}"
-          exit 1
-        fi
-        FEED_BRANCH=$(jq -r '.feed_branch' "config/${VERSION_LINE}/version.json")
-        echo "FEED_BRANCH=$FEED_BRANCH" >> $GITHUB_ENV
+      - name: Resolve version line + track
+        id: resolve
+        run: |
+          VL="v$(echo '${{ matrix.version }}' | grep -oP '^\d+\.\d+')"
+          if [ -f "config/${VL}/stable/.config" ]; then
+            TRACK="stable"
+          elif [ -f "config/${VL}/nightly/.config" ]; then
+            TRACK="nightly"
+          else
+            echo "::error::No config found for ${VL}"
+            exit 1
+          fi
+          echo "version_line=$VL"   >> "$GITHUB_OUTPUT"
+          echo "track=$TRACK"       >> "$GITHUB_OUTPUT"
 
-    - name: Set Up Build Environment
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        /bin/bash .github/scripts/setup-env.sh setup
-    
-    - name: Set timezone on the host
-      run: sudo timedatectl set-timezone "$TZ" || echo "Failed to set timezone, proceeding anyway."
+      - name: Authenticate git (upstream ImmortalWRT access)
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          git config --global user.name  'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          git config --global --add safe.directory '*'
+          printf 'machine github.com login %s\n' "${GITHUB_TOKEN:-anonymous}" > "$HOME/.netrc"
+          chmod 600 "$HOME/.netrc"
 
-    - name: Authenticate GitHub
-      env:
-        GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-      run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        echo "machine github.com login ${{ secrets.PERSONAL_ACCESS_TOKEN }}" > ~/.netrc
-        chmod 600 ~/.netrc
+      - name: Compute cache keys
+        id: cache
+        env:
+          VL: ${{ steps.resolve.outputs.version_line }}
+          TRACK: ${{ steps.resolve.outputs.track }}
+        run: |
+          CONFIG_HASH=$(sha256sum "config/${VL}/${TRACK}/.config" | cut -c1-16)
+          VERSION_HASH=$(sha256sum "config/${VL}/version.json" | cut -c1-16)
+          PATCH_HASH=$(find "patch" -type f 2>/dev/null | sort | xargs -r sha256sum | sha256sum | cut -c1-16)
+          PATCH_HASH="${PATCH_HASH:-none}"
+          BASE="${VL}-${TRACK}-${{ matrix.version }}"
+          echo "dl=dl-${BASE}-${VERSION_HASH}"         >> "$GITHUB_OUTPUT"
+          echo "ccache=ccache-${BASE}-${CONFIG_HASH}"  >> "$GITHUB_OUTPUT"
+          echo "feeds=feeds-${BASE}-${VERSION_HASH}"   >> "$GITHUB_OUTPUT"
+          echo "staging=staging-${BASE}-${CONFIG_HASH}-${PATCH_HASH}" >> "$GITHUB_OUTPUT"
 
-    - name: Clone ImmortalWRT Repository
-      working-directory: ${{ runner.workspace }}
-      run: |
-        git clone $REPO_URL -b v"${{ matrix.version }}" immortalwrt
-        echo "REPO_BRANCH=${{ matrix.version }}" >> $GITHUB_ENV
+      - name: Restore dl/ cache
+        uses: actions/cache@v4
+        with:
+          path: workspace/immortalwrt/dl
+          key: ${{ steps.cache.outputs.dl }}
+          restore-keys: |
+            dl-${{ steps.resolve.outputs.version_line }}-
 
-    - name: Apply Custom Patch Files
-      run: |
-        chmod +x scripts/utils/patch-manager.sh
-        cd ${{ runner.workspace }}/immortalwrt
-        $GITHUB_WORKSPACE/scripts/utils/patch-manager.sh ${{ matrix.version }} ${{ github.event.inputs.release_type }} ${{ runner.workspace }}/immortalwrt
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: workspace/immortalwrt/.ccache
+          key: ${{ steps.cache.outputs.ccache }}
+          restore-keys: |
+            ccache-${{ steps.resolve.outputs.version_line }}-
 
-    - name: Apply Custom Feeds Configuration
-      run: |
-        [ -e ${{ env.FEEDS_CONF }} ] && mv ${{ env.FEEDS_CONF }} ${{ runner.workspace }}/immortalwrt/feeds.conf.default
-        chmod +x ${{ env.REPO_SCRIPT }}
-        cd ${{ runner.workspace }}/immortalwrt
-        $GITHUB_WORKSPACE/${{ env.REPO_SCRIPT }} ${{ env.FEED_BRANCH }}
+      - name: Restore feeds/ cache
+        uses: actions/cache@v4
+        with:
+          path: workspace/immortalwrt/feeds
+          key: ${{ steps.cache.outputs.feeds }}
+          restore-keys: |
+            feeds-${{ steps.resolve.outputs.version_line }}-
 
-    - name: Update and Install Package Feeds
-      working-directory: ${{ runner.workspace }}/immortalwrt
-      run: |
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
+      - name: Restore staging_dir cache
+        uses: actions/cache@v4
+        with:
+          path: workspace/immortalwrt/staging_dir
+          key: ${{ steps.cache.outputs.staging }}
+          restore-keys: |
+            staging-${{ steps.resolve.outputs.version_line }}-
 
-    - name: Apply Custom Configuration
-      run: |
-        [ -e files ] && mv files ${{ runner.workspace }}/immortalwrt/files
-        [ -e ${{ env.CONFIG_FILE }} ] && mv ${{ env.CONFIG_FILE }} ${{ runner.workspace }}/immortalwrt/.config
-        chmod +x ${{ env.STOCK_PACKAGES }}
-        cd ${{ runner.workspace }}/immortalwrt
-        $GITHUB_WORKSPACE/${{ env.STOCK_PACKAGES }}
-        ./scripts/feeds install -p additional_pack -a
+      - name: Run compile.sh (no package stage)
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          ./compile.sh --no-docker --no-package \
+            --version-line "${{ steps.resolve.outputs.version_line }}" \
+            --track "${{ steps.resolve.outputs.track }}" \
+            --arch "${BANANAWRT_ARCH}" \
+            --immortalwrt-version "${BANANAWRT_IMMORTALWRT_VER}" \
+            ${BANANAWRT_JOBS:+--jobs "${BANANAWRT_JOBS}"}
 
-    - name: Diffconfig with current configuration
-      working-directory: ${{ runner.workspace }}/immortalwrt
-      run: |
-        ./scripts/diffconfig.sh > diffconfig
-        curl -sf https://downloads.immortalwrt.org/releases/${{ matrix.version }}/targets/mediatek/filogic/config.buildinfo || { echo "::warning::config.buildinfo not available for ${{ matrix.version }}"; true; }
-        cat diffconfig >> config.buildinfo
-        mv config.buildinfo .config
-        [ -n "$REPO_BRANCH" ] && sed -i \
-          -e 's|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO="https://downloads.immortalwrt.org/releases/'"${{ matrix.version }}"'"|g' \
-          .config
+      - name: Extract SDK artefact + metadata
+        env:
+          VL: ${{ steps.resolve.outputs.version_line }}
+        run: |
+          TREE="workspace/immortalwrt"
+          SDK_PATH=$(find "$TREE/bin/targets" -name "*sdk*" -type f | grep -v sha256sum | head -n 1)
+          CONFIG_PATH=$(find "$TREE/bin/targets" -name "config.buildinfo" | head -n 1)
 
-    - name: Download Required Packages
-      working-directory: ${{ runner.workspace }}/immortalwrt
-      run: |
-        make defconfig
-        [ -n "${{ github.event.inputs.nproc }}" ] && make download -j${{ github.event.inputs.nproc }} || make download -j$(nproc)
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+          if [ -z "$SDK_PATH" ]; then
+            echo "::error::SDK tarball not found under $TREE/bin/targets"
+            exit 1
+          fi
 
-    - name: Build SDK
-      working-directory: ${{ runner.workspace }}/immortalwrt
-      run: |
-        ( [ -n "${{ github.event.inputs.nproc }}" ] && make -j${{ github.event.inputs.nproc }} || make -j$(nproc) ) || make -j1 V=s
-        echo "FILE_DATE=$(date +'%Y%m%d%H%M')" >> $GITHUB_ENV
+          SDK_FILENAME=$(basename "$SDK_PATH")
+          SDK_SHA256=$(sha256sum "$SDK_PATH" | cut -d' ' -f1)
+          SDK_SIZE=$(stat -c%s "$SDK_PATH")
+          TARGET=$(echo "$SDK_FILENAME" | sed -n 's/immortalwrt-sdk-.*-\(.*\)_gcc.*/\1/p')
 
-    - name: Prepare SDK Files for Upload
-      run: |
-        SDK_PATH=$(find ${{ runner.workspace }}/immortalwrt/bin/targets -name "*sdk*" -type f | grep -v sha256sum | head -n 1)
-        CONFIG_PATH=$(find ${{ runner.workspace }}/immortalwrt/bin/targets -name "config.buildinfo" | head -n 1)
-        
-        if [ -z "$SDK_PATH" ]; then
-          echo "SDK not found"
-          exit 1
-        fi
-        
-        SDK_FILENAME=$(basename "$SDK_PATH")
-        SDK_SHA256=$(sha256sum "$SDK_PATH" | cut -d' ' -f1)
-        SDK_SIZE=$(stat -c%s "$SDK_PATH")
-        
-        TARGET=$(echo "$SDK_FILENAME" | sed -n 's/immortalwrt-sdk-.*-\(.*\)_gcc.*/\1/p')
-        
-        mkdir -p ${{ runner.workspace }}/sdk-artifacts/bananawrt/sdk/${{ matrix.arch }}/${{ matrix.version }}
-        
-        cp "$SDK_PATH" ${{ runner.workspace }}/sdk-artifacts/bananawrt/sdk/${{ matrix.arch }}/${{ matrix.version }}/
-        cp "$CONFIG_PATH" ${{ runner.workspace }}/sdk-artifacts/bananawrt/sdk/${{ matrix.arch }}/${{ matrix.version }}/ || true
-        
-        cat > ${{ runner.workspace }}/sdk-artifacts/bananawrt/sdk/${{ matrix.arch }}/${{ matrix.version }}/sdk-info.json << EOF
-        {
-          "version": "${{ matrix.version }}",
-          "architecture": "${{ matrix.arch }}",
-          "target": "$TARGET",
-          "filename": "$SDK_FILENAME",
-          "buildDate": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-          "sha256": "$SDK_SHA256",
-          "size": $SDK_SIZE,
-          "download_url": "https://repo.superkali.me/bananawrt/sdk/${{ matrix.arch }}/${{ matrix.version }}/$SDK_FILENAME"
-        }
-        EOF
+          OUT="sdk-artifacts/bananawrt/sdk/${BANANAWRT_ARCH}/${BANANAWRT_IMMORTALWRT_VER}"
+          mkdir -p "$OUT"
+          cp "$SDK_PATH" "$OUT/"
+          [ -n "$CONFIG_PATH" ] && cp "$CONFIG_PATH" "$OUT/" || true
 
-    - name: Upload SDK Artifacts
-      uses: actions/upload-artifact@v7
-      with:
-        name: sdk-${{ matrix.arch }}-${{ matrix.version }}
-        path: ${{ runner.workspace }}/sdk-artifacts
-        retention-days: 1
+          cat > "$OUT/sdk-info.json" <<EOF
+          {
+            "version": "${BANANAWRT_IMMORTALWRT_VER}",
+            "architecture": "${BANANAWRT_ARCH}",
+            "target": "$TARGET",
+            "filename": "$SDK_FILENAME",
+            "buildDate": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+            "sha256": "$SDK_SHA256",
+            "size": $SDK_SIZE,
+            "download_url": "https://repo.superkali.me/bananawrt/sdk/${BANANAWRT_ARCH}/${BANANAWRT_IMMORTALWRT_VER}/$SDK_FILENAME"
+          }
+          EOF
 
-    - name: Cleanup Workspace
-      if: always()
-      run: |
-        sudo rm -rf ~/.netrc
-        if [ -d "${{ runner.workspace }}/immortalwrt" ]; then
-            sudo rm -rf "${{ runner.workspace }}/immortalwrt"
-        fi
-        if [ -d "${{ runner.workspace }}/sdk-artifacts" ]; then
-            sudo rm -rf "${{ runner.workspace }}/sdk-artifacts"
-        fi
+      - name: Upload SDK artefact
+        uses: actions/upload-artifact@v7
+        with:
+          name: sdk-${{ matrix.arch }}-${{ matrix.version }}
+          path: sdk-artifacts
+          retention-days: 1
+
+      - name: Cleanup build tree (keep caches)
+        if: always()
+        run: |
+          rm -rf workspace/immortalwrt/build_dir workspace/immortalwrt/tmp 2>/dev/null || true
+          rm -f  "$HOME/.netrc" 2>/dev/null || true
 
   upload-to-ftp:
+    name: Publish SDKs to repo.superkali.me
     needs: [prepare, build-sdk]
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Install lftp
-      run: |
-        sudo apt update && sudo apt install -y lftp
-        
-    - name: Download All Artifacts
-      uses: actions/download-artifact@v8
-      with:
-        path: all-artifacts
-    
-    - name: Download Existing Master Index
-      run: |
-        mkdir -p ftp-upload/bananawrt/sdk
-        
-        curl -f -o ftp-upload/bananawrt/sdk/sdk-master-index.json \
-          https://repo.superkali.me/bananawrt/sdk/sdk-master-index.json || \
-          echo '{"versions":{}}' > ftp-upload/bananawrt/sdk/sdk-master-index.json
-    
-    - name: Copy New Artifacts and Update Index
-      run: |
-        echo "📁 Downloaded artifact structure:"
-        find all-artifacts -type d | head -30
-        echo ""
+      - name: Install lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp jq rsync
 
-        COPIED=false
+      - name: Download all SDK artefacts
+        uses: actions/download-artifact@v8
+        with:
+          path: all-artifacts
 
-        # Case 1: artifacts downloaded with per-artifact subdirectories (sdk-ARCH-VERSION/)
-        for artifact_dir in all-artifacts/sdk-*/; do
-          if [ -d "$artifact_dir/bananawrt/sdk" ]; then
-            echo "Copying from: $artifact_dir/bananawrt/sdk"
-            rsync -av "$artifact_dir/bananawrt/sdk/" ftp-upload/bananawrt/sdk/
-            COPIED=true
-          fi
-        done
+      - name: Assemble upload tree + master index
+        run: |
+          mkdir -p ftp-upload/bananawrt/sdk
 
-        # Case 2: artifacts downloaded flat (all-artifacts/bananawrt/sdk/...)
-        if [ "$COPIED" = "false" ] && [ -d "all-artifacts/bananawrt/sdk" ]; then
-          echo "Copying from flat layout: all-artifacts/bananawrt/sdk"
-          rsync -av all-artifacts/bananawrt/sdk/ ftp-upload/bananawrt/sdk/
-          COPIED=true
-        fi
+          # Seed with the existing master index, if any
+          curl -fsS -o ftp-upload/bananawrt/sdk/sdk-master-index.json \
+              'https://repo.superkali.me/bananawrt/sdk/sdk-master-index.json' \
+              || echo '{"versions":{}}' > ftp-upload/bananawrt/sdk/sdk-master-index.json
 
-        if [ "$COPIED" = "false" ]; then
-          echo "::warning::No SDK artifacts found to copy"
-        fi
-
-        VERSIONS=$(echo '${{ needs.prepare.outputs.matrix }}' | jq -r '.version[]')
-        ARCHS=$(echo '${{ needs.prepare.outputs.matrix }}' | jq -r '.arch[]')
-        BASE_URL="https://repo.superkali.me/bananawrt/sdk"
-
-        MASTER_INDEX="ftp-upload/bananawrt/sdk/sdk-master-index.json"
-
-        for VERSION in $VERSIONS; do
-          jq --arg version "$VERSION" \
-             '.versions[$version] //= {"architectures": {}}' \
-             "$MASTER_INDEX" > temp.json && mv temp.json "$MASTER_INDEX"
-
-          for ARCH in $ARCHS; do
-            jq --arg version "$VERSION" \
-               --arg arch "$ARCH" \
-               --arg base_url "$BASE_URL" \
-               '.versions[$version].architectures[$arch] = {
-                 "sdk_url": ($base_url + "/" + $arch + "/" + $version + "/"),
-                 "config_url": ($base_url + "/" + $arch + "/" + $version + "/config.buildinfo"),
-                 "info_url": ($base_url + "/" + $arch + "/" + $version + "/sdk-info.json")
-               }' "$MASTER_INDEX" > temp.json && mv temp.json "$MASTER_INDEX"
+          # Copy artefacts into the staging tree (supports both flat and per-artefact layouts)
+          for d in all-artifacts/sdk-*/; do
+            [ -d "$d/bananawrt/sdk" ] || continue
+            rsync -av "$d/bananawrt/sdk/" ftp-upload/bananawrt/sdk/
           done
-        done
+          [ -d all-artifacts/bananawrt/sdk ] && rsync -av all-artifacts/bananawrt/sdk/ ftp-upload/bananawrt/sdk/
 
-        # Verify files exist before FTP upload
-        echo ""
-        echo "📁 Files prepared for FTP upload:"
-        find ftp-upload -type f -exec ls -lh {} \;
-        TOTAL_SIZE=$(du -sh ftp-upload | cut -f1)
-        echo "Total size to upload: $TOTAL_SIZE"
+          MATRIX='${{ needs.prepare.outputs.matrix }}'
+          VERSIONS=$(echo "$MATRIX" | jq -r '.include[].version' | sort -u)
+          ARCHS=$(echo "$MATRIX"   | jq -r '.include[].arch'    | sort -u)
+          INDEX='ftp-upload/bananawrt/sdk/sdk-master-index.json'
+          BASE='https://repo.superkali.me/bananawrt/sdk'
 
-        if [ "$TOTAL_SIZE" = "12K" ] || [ "$TOTAL_SIZE" = "8K" ] || [ "$TOTAL_SIZE" = "4K" ]; then
-          echo "::warning::Upload directory is very small - SDK files may be missing!"
-        fi
+          for VERSION in $VERSIONS; do
+            jq --arg v "$VERSION" '.versions[$v] //= {architectures:{}}' "$INDEX" > "$INDEX.tmp" && mv "$INDEX.tmp" "$INDEX"
+            for ARCH in $ARCHS; do
+              jq --arg v "$VERSION" --arg a "$ARCH" --arg base "$BASE" \
+                 '.versions[$v].architectures[$a] = {
+                    sdk_url: ($base + "/" + $a + "/" + $v + "/"),
+                    config_url: ($base + "/" + $a + "/" + $v + "/config.buildinfo"),
+                    info_url: ($base + "/" + $a + "/" + $v + "/sdk-info.json")
+                  }' "$INDEX" > "$INDEX.tmp" && mv "$INDEX.tmp" "$INDEX"
+            done
+          done
 
-    - name: Upload All Files to FTP
-      run: |
-        echo "================================================================"
-        echo "🚀 Starting FTP upload to repo.superkali.me"
-        echo "================================================================"
-        
-        echo "📁 Files to upload:"
-        find ftp-upload -type f | while read file; do
-          size=$(stat -c%s "$file")
-          echo "  $(basename "$file") ($(numfmt --to=iec $size))"
-        done
-        echo ""
-        
-        echo "🔄 Connecting to FTP server..."
-        
-        lftp -c "
-        set ftp:ssl-allow no;
-        set net:timeout 30;
-        set net:max-retries 3;
-        set net:reconnect-interval-base 5;
-        set cmd:fail-exit true;
-        
-        open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} ${{ secrets.FTP_HOST }};
-        
-        echo '📡 Connected successfully';
-        echo '🔄 Starting incremental sync...';
-        
-        mirror --reverse --verbose --only-newer --parallel=2 ftp-upload/bananawrt/sdk /bananawrt/sdk;
-        
-        echo '✅ Upload completed successfully';
-        quit
-        " 2>&1 | while IFS= read -r line; do
-          case "$line" in
-            *"Making directory"*) echo "📁 $line" ;;
-            *"Transferring file"*) echo "📤 $line" ;;
-            *"bytes transferred"*) echo "📊 $line" ;;
-            *"mirror:"*) echo "🔄 $line" ;;
-            *"Total:"*) echo "📈 $line" ;;
-            *"Connected"*) echo "✅ $line" ;;
-            *"Upload completed"*) echo "🎉 $line" ;;
-            *"Error"*|*"error"*) echo "❌ $line" ;;
-            *) echo "$line" ;;
-          esac
-        done
-        
-        # Clear history again after execution
-        history -c 2>/dev/null || true
-        
-        echo ""
-        echo "================================================================"
-        echo "🎉 FTP upload completed!"
-        echo "📍 Repository URL: https://repo.superkali.me/bananawrt/sdk/"
-        echo "================================================================"
+          echo "Upload tree:"
+          find ftp-upload -type f -exec ls -lh {} \;
+
+      - name: Upload to FTP
+        run: |
+          lftp -c "
+            set ftp:ssl-allow no;
+            set net:timeout 30;
+            set net:max-retries 3;
+            set cmd:fail-exit true;
+            open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} ${{ secrets.FTP_HOST }};
+            mirror --reverse --verbose --only-newer --parallel=2 \
+                ftp-upload/bananawrt/sdk /bananawrt/sdk;
+            quit
+          "
+
+      - name: Summary
+        run: |
+          {
+            echo '## BananaWRT SDK publish'
+            echo
+            echo '| Field | Value |'
+            echo '|---|---|'
+            echo '| Repository | https://repo.superkali.me/bananawrt/sdk/ |'
+            echo '| Matrix | `${{ needs.prepare.outputs.matrix }}` |'
+          } >> "$GITHUB_STEP_SUMMARY"

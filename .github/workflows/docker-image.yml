@@ -19,7 +19,6 @@ on:
     paths:
       - Dockerfile
       - .dockerignore
-      - .github/scripts/setup-env.sh
       - .github/workflows/docker-image.yml
   schedule:
     # Weekly rebuild to pick up upstream security updates (Mon 04:00 UTC)

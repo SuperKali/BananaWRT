@@ -50,6 +50,7 @@ BANANAWRT_STAGE="${BANANAWRT_STAGE:-}"
 BANANAWRT_KEEP_SOURCE="${BANANAWRT_KEEP_SOURCE:-0}"
 BANANAWRT_CLEAN="${BANANAWRT_CLEAN:-}"
 BANANAWRT_CI="${BANANAWRT_CI:-}"
+BANANAWRT_NO_PACKAGE="${BANANAWRT_NO_PACKAGE:-0}"
 BANANAWRT_RELEASE_DATE="${BANANAWRT_RELEASE_DATE:-$(date +'%Y.%m.%d-%H%M')}"
 
 # ─── Argument parser ─────────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ parse_args() {
             --no-docker)       BANANAWRT_USE_DOCKER=0;      shift ;;
             --image)           BANANAWRT_DOCKER_IMAGE="$2"; shift 2 ;;
             --ci)              BANANAWRT_CI=1;              shift ;;
+            --no-package)      BANANAWRT_NO_PACKAGE=1;      shift ;;
             --stage)           BANANAWRT_STAGE="$2";        shift 2 ;;
             --keep-source)     BANANAWRT_KEEP_SOURCE=1;     shift ;;
             --clean)           BANANAWRT_CLEAN='build';     shift ;;
@@ -142,6 +144,17 @@ run_pipeline() {
             exit_with_error "Unknown --stage: $BANANAWRT_STAGE (valid: ${stages[*]})"
         fi
         stages=( "$BANANAWRT_STAGE" )
+    fi
+    # Drop the package stage when the caller asked for a build-only run
+    # (used by the SDK workflow, which does its own post-processing)
+    if [[ "$BANANAWRT_NO_PACKAGE" == "1" ]]; then
+        local -a filtered=()
+        local s
+        for s in "${stages[@]}"; do
+            [[ "$s" == "package" ]] && continue
+            filtered+=( "$s" )
+        done
+        stages=( "${filtered[@]}" )
     fi
     local total=${#stages[@]}
     local i=0 name
@@ -249,14 +262,15 @@ main() {
         [[ "$BANANAWRT_KEEP_SOURCE" == "1" ]] && fwd_args+=( --keep-source )
         [[ "${BANANAWRT_DEBUG:-0}" == "1" ]]  && fwd_args+=( --verbose )
         [[ "$BANANAWRT_CI" == "1" ]]          && fwd_args+=( --ci )
+        [[ "$BANANAWRT_NO_PACKAGE" == "1" ]]  && fwd_args+=( --no-package )
         docker_run_stage "${fwd_args[@]}"
         return $?
     fi
 
     # Native build path
     if [[ "$BANANAWRT_USE_DOCKER" == "0" && "$BANANAWRT_CI" != "1" ]]; then
-        # In non-CI host mode, warn about missing tools but don't hard-fail on
-        # every apt package; we rely on the user running setup-env.sh themselves.
+        # Non-CI host mode: defer to the user for heavy deps (or they run
+        # --docker); check_build_host_requirements is intentionally soft here.
         :
     fi
 

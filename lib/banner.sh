@@ -80,6 +80,7 @@ ${C_BOLD}OPTIONAL ARGUMENTS${C_RESET}
   --image <ref>                        Override container image reference
                                        (default: ghcr.io/superkali/bananawrt-builder:latest)
   --ci                                 Enable CI mode (FTP upload, GitHub release)
+  --no-package                         Stop after stage 6 (compile); used by SDK workflow
   --stage <name>                       Run only the named stage
                                        (clone|patch|feeds|config|download|compile|package)
   --keep-source                        Skip cleanup of ${C_DIM}\$WORKSPACE/immortalwrt${C_RESET} on exit
