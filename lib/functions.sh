@@ -9,9 +9,22 @@
 #
 
 # ──────────────────────────────────────────────────────────────────────────────
-#  Colors (respect NO_COLOR / non-tty)
+#  Colors (respect NO_COLOR / non-tty; force on in CI or via FORCE_COLOR)
 # ──────────────────────────────────────────────────────────────────────────────
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+_color_enabled=0
+if [[ -z "${NO_COLOR:-}" ]]; then
+    if [[ -t 1 ]]; then
+        _color_enabled=1
+    elif [[ -n "${FORCE_COLOR:-}" ]]; then
+        _color_enabled=1
+    elif [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
+        # GitHub Actions / GitLab / CircleCI / most CI systems render ANSI
+        # escapes in their log viewer even though stdout is a pipe.
+        _color_enabled=1
+    fi
+fi
+
+if (( _color_enabled )); then
     C_RESET='\033[0m'
     C_BOLD='\033[1m'
     C_DIM='\033[2m'
@@ -29,6 +42,7 @@ else
     C_RED='' C_GREEN='' C_YELLOW='' C_BLUE=''
     C_MAGENTA='' C_CYAN='' C_WHITE='' C_GRAY=''
 fi
+unset _color_enabled
 
 # ──────────────────────────────────────────────────────────────────────────────
 #  Unicode glyphs (with ASCII fallback if LANG doesn't include UTF-8)
