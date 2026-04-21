@@ -103,8 +103,6 @@ jobs:
       BANANAWRT_RELEASE_DATE: ${{ needs.resolve-runner.outputs.release_date }}
       BANANAWRT_JOBS: ${{ inputs.nproc }}
       BANANAWRT_CI: '1'
-      BANANAWRT_CCACHE: '1'
-      BANANAWRT_CCACHE_MAX: '12G'
     steps:
       - name: Clean previous workspace
         run: |

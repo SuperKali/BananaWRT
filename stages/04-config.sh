@@ -112,14 +112,20 @@ stage_config() {
     fi
     rm -f "$log"
 
-    # 7) Enable CCACHE if the user configured it (config flag or env)
-    if [[ "${BANANAWRT_CCACHE:-auto}" == "1" || "${BANANAWRT_CCACHE:-auto}" == "auto" ]]; then
-        substep "Enabling CCACHE in .config"
+    # 7) Enable CCACHE only when the caller opts in explicitly. The upstream
+    # tools/ccache path has a known race (issue #15072) that's tricky to
+    # bypass reliably on multi-arch containers, so we keep it off by default.
+    # Set BANANAWRT_CCACHE=1 to experiment with it.
+    if [[ "${BANANAWRT_CCACHE:-0}" == "1" ]]; then
+        substep "Enabling CCACHE in .config (opt-in)"
         mkdir -p "$BANANAWRT_CCACHE_DIR"
         (cd "$BANANAWRT_IMMORTAL_DIR"
          sed -i '/^CONFIG_CCACHE[= ]/d; /^# CONFIG_CCACHE /d' .config
          echo 'CONFIG_CCACHE=y' >> .config)
         substep_done
+    else
+        substep "CCACHE opt-in (unset BANANAWRT_CCACHE → disabled)"
+        substep_skip 'default off'
     fi
 
     # 8) defconfig to realise the merge

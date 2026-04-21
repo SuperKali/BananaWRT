@@ -135,8 +135,6 @@ jobs:
       BANANAWRT_ARCH: ${{ matrix.arch }}
       BANANAWRT_IMMORTALWRT_VER: ${{ matrix.version }}
       BANANAWRT_JOBS: ${{ inputs.nproc }}
-      BANANAWRT_CCACHE: '1'
-      BANANAWRT_CCACHE_MAX: '12G'
     steps:
       - name: Clean previous workspace
         run: |
