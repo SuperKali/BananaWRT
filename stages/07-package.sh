@@ -14,7 +14,9 @@ stage_package() {
     display_subheader "Package firmware artefacts"
 
     local target_dir
-    target_dir="$(ls -d "$BANANAWRT_IMMORTAL_DIR"/bin/targets/*/* 2>/dev/null | head -n1)"
+    # `ls | head -n1` can exit 141 (SIGPIPE) when pipefail is on if ls has
+    # more entries than head consumes — trailing `|| true` neutralises it.
+    target_dir="$(ls -d "$BANANAWRT_IMMORTAL_DIR"/bin/targets/*/* 2>/dev/null | head -n1 || true)"
     if [[ -z "$target_dir" || ! -d "$target_dir" ]]; then
         exit_with_error "No firmware target directory found under bin/targets/*"
     fi
@@ -49,7 +51,7 @@ stage_package() {
     # match the version regex.
     local kernel_version target_devices
     kernel_version="$(find "$BANANAWRT_IMMORTAL_DIR/build_dir/target-"*/linux-*/ -type d -regex '.*/linux-[0-9]+\.[0-9]+.*' 2>/dev/null \
-                       | head -n1 | sed -E 's|.*/linux-||')"
+                       | head -n1 | sed -E 's|.*/linux-||' || true)"
     kernel_version="${kernel_version:-unknown}"
     target_devices="$(grep '^CONFIG_TARGET.*DEVICE.*=y' "$BANANAWRT_IMMORTAL_DIR/.config" | sed -r 's/.*DEVICE_(.*)=y/\1/')"
 
