@@ -54,6 +54,8 @@ jobs:
 
       - name: Resolve version and set up build matrix
         id: set-matrix
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           TRACK="${{ github.event.inputs.release_type }}"
 
@@ -72,7 +74,7 @@ jobs:
             exit 1
           fi
 
-          VERSION_ARRAY=$(echo "$VERSION" | jq -R . | jq -s .)
+          VERSIONS=$(echo "$VERSION" | jq -R . | jq -s .)
 
           if [ "${{ github.event.inputs.architecture }}" = "ALL" ]; then
             ARCHS='["X64", "ARM64"]'
@@ -80,13 +82,44 @@ jobs:
             ARCHS='["${{ github.event.inputs.architecture }}"]'
           fi
 
-          MATRIX="{\"version\":$VERSION_ARRAY,\"arch\":$ARCHS}"
+          # Count free self-hosted runners per arch (online + not busy)
+          RUNNERS_JSON=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100" 2>/dev/null || echo '{"runners":[]}')
+          ARM64_FREE=$(echo "$RUNNERS_JSON" | jq '[.runners[] | select(.status == "online") | select(.busy == false) | select([.labels[].name] | contains(["self-hosted", "ARM64"]))] | length')
+          X64_FREE=$(echo "$RUNNERS_JSON"   | jq '[.runners[] | select(.status == "online") | select(.busy == false) | select([.labels[].name] | contains(["self-hosted", "X64"]))]   | length')
+          echo "Free self-hosted runners — ARM64: $ARM64_FREE, X64: $X64_FREE"
+
+          # Build include list: first N items per arch go to self-hosted, rest spill to GitHub-hosted
+          ARM64_USED=0
+          X64_USED=0
+          INCLUDES='[]'
+          for V in $(echo "$VERSIONS" | jq -r '.[]'); do
+            for A in $(echo "$ARCHS" | jq -r '.[]'); do
+              if [ "$A" = "ARM64" ]; then
+                if [ "$ARM64_USED" -lt "$ARM64_FREE" ]; then
+                  RUNNER='["self-hosted","ARM64"]'
+                  ARM64_USED=$((ARM64_USED + 1))
+                else
+                  RUNNER='"ubuntu-24.04-arm"'
+                fi
+              else
+                if [ "$X64_USED" -lt "$X64_FREE" ]; then
+                  RUNNER='["self-hosted","X64"]'
+                  X64_USED=$((X64_USED + 1))
+                else
+                  RUNNER='"ubuntu-latest"'
+                fi
+              fi
+              INCLUDES=$(echo "$INCLUDES" | jq --arg v "$V" --arg a "$A" --argjson r "$RUNNER" '. + [{version: $v, arch: $a, runner: $r}]')
+            done
+          done
+
+          MATRIX=$(jq -nc --argjson inc "$INCLUDES" '{include: $inc}')
           echo "Generated matrix: $MATRIX"
-          echo "matrix=$(echo "$MATRIX" | jq -c .)" >> "$GITHUB_OUTPUT"
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
 
   build-sdk:
     needs: prepare
-    runs-on: ${{ matrix.arch == 'X64' && 'ubuntu-latest' || fromJSON('["self-hosted","ARM64"]') }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}

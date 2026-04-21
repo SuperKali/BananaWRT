@@ -57,8 +57,34 @@ env:
   TZ: Europe/Rome
 
 jobs:
+  resolve-runner:
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.pick.outputs.runner }}
+    steps:
+    - name: Detect available runner
+      id: pick
+      env:
+        GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        ARCH: ${{ inputs.architecture }}
+      run: |
+        FREE=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100" 2>/dev/null \
+          | jq --arg arch "$ARCH" '[.runners[] | select(.status == "online") | select(.busy == false) | select([.labels[].name] | contains(["self-hosted", $arch]))] | length' \
+          || echo "0")
+        if [ "$FREE" -gt 0 ]; then
+          echo "Found $FREE free self-hosted $ARCH runner(s); using self-hosted."
+          echo "runner=[\"self-hosted\",\"$ARCH\"]" >> "$GITHUB_OUTPUT"
+        elif [ "$ARCH" = "ARM64" ]; then
+          echo "No free self-hosted ARM64 runner; falling back to ubuntu-24.04-arm."
+          echo 'runner="ubuntu-24.04-arm"' >> "$GITHUB_OUTPUT"
+        else
+          echo "No free self-hosted X64 runner; falling back to ubuntu-latest."
+          echo 'runner="ubuntu-latest"' >> "$GITHUB_OUTPUT"
+        fi
+
   build:
-    runs-on: ${{ inputs.architecture == 'X64' && 'ubuntu-latest' || fromJSON('["self-hosted","ARM64"]') }}
+    needs: resolve-runner
+    runs-on: ${{ fromJSON(needs.resolve-runner.outputs.runner) }}
     steps:
     - name: Cleanup previous build
       run: |
