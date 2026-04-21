@@ -158,9 +158,11 @@ RUN userdel --remove --force ubuntu 2>/dev/null || true \
     && printf 'builder ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/builder \
     && chmod 440 /etc/sudoers.d/builder
 
-# ccache directory the builder user can write into even before the volume mount
+# Working directory with permissive write bits so any container UID mapped
+# in via --user can still operate here.
 RUN mkdir -p /build/workspace/cache/ccache \
-    && chown -R builder:builder /build
+    && chown -R builder:builder /build \
+    && chmod -R a+rwX /build
 
 USER builder
 WORKDIR /build
