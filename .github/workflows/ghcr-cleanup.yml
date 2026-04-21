@@ -45,7 +45,9 @@ jobs:
           package-type: container
           min-versions-to-keep: ${{ inputs.keep || '10' }}
           delete-only-untagged-versions: false
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          # Use the workflow's GITHUB_TOKEN (requires `packages: write` which
+          # is already declared above). Avoids the `delete:packages` scope
+          # dance that a classic PAT would need.
 
       - name: Clean up all untagged (dangling) versions
         if: inputs.include_untagged != false
@@ -55,7 +57,6 @@ jobs:
           package-type: container
           min-versions-to-keep: 0
           delete-only-untagged-versions: true
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
       - name: Summary
         run: |
