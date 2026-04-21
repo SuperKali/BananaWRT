@@ -27,6 +27,27 @@ stage_compile() {
         ccache_before_miss="${ccache_before_miss:-0}"
     fi
 
+    # When CONFIG_CCACHE=y the upstream tools/Makefile has a known race:
+    # tools/liblzo (and friends) try to wrap their compiler through the
+    # not-yet-installed ccache binary, which fails. Build tools/ccache
+    # explicitly first to seed staging_dir/host/bin/ccache.
+    #   Ref: https://github.com/openwrt/openwrt/issues/15072
+    #   Ref: https://forum.openwrt.org/t/ccache-build-error-with-21-02-0-rc1-which-fix-is-likely/95238
+    if grep -q '^CONFIG_CCACHE=y' "$BANANAWRT_IMMORTAL_DIR/.config"; then
+        substep "Pre-building tools/ccache (avoid liblzo race)"
+        local prelog
+        prelog="$(mktemp -t bananawrt-ccache-pre.XXXXXX)"
+        if (cd "$BANANAWRT_IMMORTAL_DIR" && make tools/ccache/install -j"$jobs" >"$prelog" 2>&1); then
+            substep_done
+        else
+            substep_fail 'tools/ccache pre-build failed'
+            tail -n 40 "$prelog"
+            rm -f "$prelog"
+            exit_with_error "Unable to pre-build tools/ccache"
+        fi
+        rm -f "$prelog"
+    fi
+
     display_alert info "Starting make -j$jobs (this is the long one — grab a coffee)"
 
     local start_ts end_ts duration
