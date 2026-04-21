@@ -54,12 +54,14 @@ on:
 env:
   TZ: Europe/Rome
 
-# Default permissions for every job: enough to pull the builder image from
-# GHCR (packages: read) and read the checked-out code. Individual jobs can
-# widen as needed.
+# Default permissions for every job:
+# - contents: read    — actions/checkout + git describe
+# - packages: read    — pull the BananaWRT builder image from GHCR
+# - actions:  write   — Mattraks/delete-workflow-runs can trim history
 permissions:
   contents: read
   packages: read
+  actions: write
 
 jobs:
   resolve-runner:
