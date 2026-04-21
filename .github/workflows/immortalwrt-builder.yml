@@ -54,6 +54,13 @@ on:
 env:
   TZ: Europe/Rome
 
+# Default permissions for every job: enough to pull the builder image from
+# GHCR (packages: read) and read the checked-out code. Individual jobs can
+# widen as needed.
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   resolve-runner:
     runs-on: ubuntu-latest
@@ -123,6 +130,8 @@ jobs:
 
       - name: Compute cache keys
         id: cache
+        env:
+          RUNNER_ARCH_TAG: ${{ runner.arch }}
         run: |
           # Use version_line + track + .config hash as the primary cache axis.
           CONFIG_HASH=$(sha256sum "config/${BANANAWRT_VERSION_LINE}/${BANANAWRT_TRACK}/.config" | cut -c1-16)
@@ -130,10 +139,14 @@ jobs:
           PATCH_HASH=$(find "patch" -type f 2>/dev/null | sort | xargs -r sha256sum | sha256sum | cut -c1-16)
           PATCH_HASH="${PATCH_HASH:-none}"
           BASE="${BANANAWRT_VERSION_LINE}-${BANANAWRT_TRACK}-${BANANAWRT_IMMORTALWRT_VER}"
-          echo "dl=dl-${BASE}-${VERSION_HASH}" >> "$GITHUB_OUTPUT"
-          echo "ccache=ccache-${BASE}-${CONFIG_HASH}" >> "$GITHUB_OUTPUT"
-          echo "feeds=feeds-${BASE}-${VERSION_HASH}" >> "$GITHUB_OUTPUT"
-          echo "staging=staging-${BASE}-${CONFIG_HASH}-${PATCH_HASH}" >> "$GITHUB_OUTPUT"
+          # dl/ and feeds/ contain upstream sources — identical across archs.
+          echo "dl=dl-${BASE}-${VERSION_HASH}"                                  >> "$GITHUB_OUTPUT"
+          echo "feeds=feeds-${BASE}-${VERSION_HASH}"                            >> "$GITHUB_OUTPUT"
+          # ccache and staging_dir contain host-native binaries — must be
+          # isolated per build-host architecture.
+          echo "ccache=ccache-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}"        >> "$GITHUB_OUTPUT"
+          echo "staging=staging-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}-${PATCH_HASH}" >> "$GITHUB_OUTPUT"
+          echo "arch_tag=${RUNNER_ARCH_TAG}"                                    >> "$GITHUB_OUTPUT"
 
       - name: Restore dl/ cache
         uses: actions/cache@v4
@@ -150,8 +163,8 @@ jobs:
           path: workspace/immortalwrt/.ccache
           key: ${{ steps.cache.outputs.ccache }}
           restore-keys: |
-            ccache-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
-            ccache-${{ env.BANANAWRT_VERSION_LINE }}-
+            ccache-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
+            ccache-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-
 
       - name: Restore feeds/ cache
         uses: actions/cache@v4
@@ -167,7 +180,7 @@ jobs:
           path: workspace/immortalwrt/staging_dir
           key: ${{ steps.cache.outputs.staging }}
           restore-keys: |
-            staging-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
+            staging-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
 
       - name: Run BananaWRT compile.sh
         env:

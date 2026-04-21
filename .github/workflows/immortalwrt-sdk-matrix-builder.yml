@@ -47,6 +47,10 @@ on:
 env:
   TZ: Europe/Rome
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -173,16 +177,20 @@ jobs:
         env:
           VL: ${{ steps.resolve.outputs.version_line }}
           TRACK: ${{ steps.resolve.outputs.track }}
+          RUNNER_ARCH_TAG: ${{ runner.arch }}
         run: |
           CONFIG_HASH=$(sha256sum "config/${VL}/${TRACK}/.config" | cut -c1-16)
           VERSION_HASH=$(sha256sum "config/${VL}/version.json" | cut -c1-16)
           PATCH_HASH=$(find "patch" -type f 2>/dev/null | sort | xargs -r sha256sum | sha256sum | cut -c1-16)
           PATCH_HASH="${PATCH_HASH:-none}"
           BASE="${VL}-${TRACK}-${{ matrix.version }}"
-          echo "dl=dl-${BASE}-${VERSION_HASH}"         >> "$GITHUB_OUTPUT"
-          echo "ccache=ccache-${BASE}-${CONFIG_HASH}"  >> "$GITHUB_OUTPUT"
-          echo "feeds=feeds-${BASE}-${VERSION_HASH}"   >> "$GITHUB_OUTPUT"
-          echo "staging=staging-${BASE}-${CONFIG_HASH}-${PATCH_HASH}" >> "$GITHUB_OUTPUT"
+          # dl/ and feeds/ are host-arch agnostic (upstream source blobs).
+          echo "dl=dl-${BASE}-${VERSION_HASH}"                                    >> "$GITHUB_OUTPUT"
+          echo "feeds=feeds-${BASE}-${VERSION_HASH}"                              >> "$GITHUB_OUTPUT"
+          # ccache + staging_dir hold host-native binaries → isolate per arch.
+          echo "ccache=ccache-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}"          >> "$GITHUB_OUTPUT"
+          echo "staging=staging-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}-${PATCH_HASH}" >> "$GITHUB_OUTPUT"
+          echo "arch_tag=${RUNNER_ARCH_TAG}"                                      >> "$GITHUB_OUTPUT"
 
       - name: Restore dl/ cache
         uses: actions/cache@v4
@@ -198,7 +206,7 @@ jobs:
           path: workspace/immortalwrt/.ccache
           key: ${{ steps.cache.outputs.ccache }}
           restore-keys: |
-            ccache-${{ steps.resolve.outputs.version_line }}-
+            ccache-${{ steps.cache.outputs.arch_tag }}-${{ steps.resolve.outputs.version_line }}-
 
       - name: Restore feeds/ cache
         uses: actions/cache@v4
@@ -214,7 +222,7 @@ jobs:
           path: workspace/immortalwrt/staging_dir
           key: ${{ steps.cache.outputs.staging }}
           restore-keys: |
-            staging-${{ steps.resolve.outputs.version_line }}-
+            staging-${{ steps.cache.outputs.arch_tag }}-${{ steps.resolve.outputs.version_line }}-
 
       - name: Run compile.sh (no package stage)
         env:
