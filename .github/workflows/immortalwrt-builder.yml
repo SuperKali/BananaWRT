@@ -221,7 +221,10 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: BananaWRT_packages_${{ needs.resolve-runner.outputs.release_date }}
-          path: workspace/immortalwrt/bin/packages/*/additional_pack/*.ipk
+          # v24.10 uses opkg (.ipk), v25.12+ uses apk (.apk) — glob both.
+          path: |
+            workspace/immortalwrt/bin/packages/*/additional_pack/*.ipk
+            workspace/immortalwrt/bin/packages/*/additional_pack/*.apk
           if-no-files-found: ignore
           retention-days: 7
 
