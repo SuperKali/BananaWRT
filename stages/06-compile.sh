@@ -39,13 +39,20 @@ stage_compile() {
         prelog="$(mktemp -t bananawrt-ccache-pre.XXXXXX)"
         if (cd "$BANANAWRT_IMMORTAL_DIR" && make tools/ccache/install -j"$jobs" >"$prelog" 2>&1); then
             substep_done
-        else
-            substep_fail 'tools/ccache pre-build failed'
-            tail -n 40 "$prelog"
             rm -f "$prelog"
-            exit_with_error "Unable to pre-build tools/ccache"
+        else
+            substep_fail 'parallel pre-build failed, retrying with -j1 V=s'
+            printf '%b---- ccache parallel pre-build tail ----%b\n' "$C_DIM" "$C_RESET"
+            tail -n 40 "$prelog"
+            printf '%b-----------------------------------------%b\n' "$C_DIM" "$C_RESET"
+            rm -f "$prelog"
+            # Verbose sequential retry — surfaces the real error
+            display_alert info "Re-running: make tools/ccache/install -j1 V=s"
+            if ! (cd "$BANANAWRT_IMMORTAL_DIR" && make tools/ccache/install -j1 V=s); then
+                exit_with_error "tools/ccache failed to build even with -j1 V=s (check log above)"
+            fi
+            display_alert ok "tools/ccache built successfully after sequential retry"
         fi
-        rm -f "$prelog"
     fi
 
     display_alert info "Starting make -j$jobs (this is the long one — grab a coffee)"
