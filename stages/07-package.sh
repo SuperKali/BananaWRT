@@ -42,9 +42,13 @@ stage_package() {
     done < <(find "$target_dir" -maxdepth 1 -type f -print0)
     substep_done
 
-    # Capture kernel + device info
+    # Capture kernel + device info. The actual kernel source lives in
+    #   build_dir/target-<arch>/linux-<target>/linux-<X.Y.Z>/
+    # so we need to recurse into the glob expansion; -maxdepth 0 would
+    # stop at the outer `linux-<target>` directory whose name does NOT
+    # match the version regex.
     local kernel_version target_devices
-    kernel_version="$(find "$BANANAWRT_IMMORTAL_DIR/build_dir/target-"*/linux-*/ -maxdepth 0 -type d -regex '.*/linux-[0-9]+\.[0-9]+.*' 2>/dev/null \
+    kernel_version="$(find "$BANANAWRT_IMMORTAL_DIR/build_dir/target-"*/linux-*/ -type d -regex '.*/linux-[0-9]+\.[0-9]+.*' 2>/dev/null \
                        | head -n1 | sed -E 's|.*/linux-||')"
     kernel_version="${kernel_version:-unknown}"
     target_devices="$(grep '^CONFIG_TARGET.*DEVICE.*=y' "$BANANAWRT_IMMORTAL_DIR/.config" | sed -r 's/.*DEVICE_(.*)=y/\1/')"
