@@ -70,6 +70,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         gettext \
         gh \
         git \
+        gosu \
         gperf \
         haveged \
         help2man \
@@ -164,12 +165,64 @@ RUN mkdir -p /build/workspace/cache/ccache \
     && chown -R builder:builder /build \
     && chmod -R a+rwX /build
 
-USER builder
+# ─── Dynamic UID/GID remap entrypoint ───────────────────────────────────────
+# GitHub-hosted runners (ubuntu-latest) run the runner as UID 1001 and bind-
+# mount /__w into this container owned by that UID. Self-hosted runners use
+# varying UIDs. ImmortalWRT refuses to build as root, so we keep `builder`
+# as the non-root user but rewrite its UID/GID at container start to match
+# whatever owns /__w (falling back to the baked-in 1000:1000). Root is only
+# used for the sub-second remap; the payload always runs as `builder` via
+# gosu, so `id -u` inside compile.sh is never 0.
+# Refs:
+#   https://github.com/actions/runner/issues/2411
+#   https://github.com/actions/checkout/issues/956
+#   https://github.com/actions/runner-images/issues/10936
+COPY --chmod=0755 <<'EOF' /usr/local/bin/docker-entrypoint.sh
+#!/bin/bash
+set -euo pipefail
+
+TARGET_UID=1000
+TARGET_GID=1000
+
+for probe in /__w /__w/_temp /github/workflow /github/home; do
+    if [ -e "$probe" ]; then
+        TARGET_UID=$(stat -c '%u' "$probe")
+        TARGET_GID=$(stat -c '%g' "$probe")
+        break
+    fi
+done
+
+CURRENT_UID=$(id -u builder)
+CURRENT_GID=$(id -g builder)
+
+if [ "$TARGET_UID" != "0" ] && \
+   { [ "$TARGET_UID" != "$CURRENT_UID" ] || [ "$TARGET_GID" != "$CURRENT_GID" ]; }; then
+    getent passwd "$TARGET_UID" >/dev/null \
+        && userdel -f "$(getent passwd "$TARGET_UID" | cut -d: -f1)" || true
+    getent group "$TARGET_GID" >/dev/null \
+        && groupdel "$(getent group "$TARGET_GID" | cut -d: -f1)" 2>/dev/null || true
+
+    groupmod -g "$TARGET_GID" builder
+    usermod  -u "$TARGET_UID" -g "$TARGET_GID" builder
+
+    chown -R "$TARGET_UID:$TARGET_GID" /home/builder /build
+fi
+
+if [ "$#" -eq 0 ]; then
+    exec gosu builder /bin/bash -lc "/build/compile.sh --help"
+fi
+
+exec gosu builder "$@"
+EOF
+
+# Entrypoint runs as root so usermod/chown can remap; it drops to `builder`
+# via gosu for every step. Image still documents builder as the effective
+# user for any tooling that inspects metadata.
+USER root
 WORKDIR /build
 
-# Health-check: runs `./compile.sh --help` which exercises every sourced lib
 HEALTHCHECK --interval=30s --timeout=10s --retries=2 \
-    CMD test -x /build/compile.sh && /build/compile.sh --help >/dev/null 2>&1 || exit 1
+    CMD test -x /build/compile.sh && gosu builder /build/compile.sh --help >/dev/null 2>&1 || exit 1
 
-ENTRYPOINT ["/bin/bash"]
-CMD ["-lc", "/build/compile.sh --help"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["/bin/bash", "-lc", "/build/compile.sh --help"]
