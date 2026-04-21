@@ -86,6 +86,50 @@ apply_patches() {
     return $failed_count
 }
 
+apply_tree_patches() {
+    local patch_dir="$PATCH_BASE_DIR/tree/$VERSION_LINE/$RELEASE_TYPE"
+
+    if [ ! -d "$patch_dir" ] && [ -d "$PATCH_BASE_DIR/tree/$VERSION_LINE" ]; then
+        patch_dir="$PATCH_BASE_DIR/tree/$VERSION_LINE"
+        info "Using shared tree patches for $VERSION_LINE (no track-specific directory)"
+    fi
+
+    if [ ! -d "$patch_dir" ]; then
+        info "No tree patches found for $VERSION_LINE/$RELEASE_TYPE - skipping"
+        return 0
+    fi
+
+    local file_count=$(find "$patch_dir" -name '*.patch' -type f | wc -l)
+    if [ "$file_count" -eq 0 ]; then
+        info "No .patch files found in tree directory - skipping"
+        return 0
+    fi
+
+    section "Applying Source tree patches ($file_count files)"
+
+    local applied_count=0
+    local failed_count=0
+
+    while IFS= read -r file; do
+        local rel_path="${file#$patch_dir/}"
+        if (cd "$IMMORTALWRT_DIR" && patch -p1 --forward --silent < "$file"); then
+            info "Applied: $rel_path"
+            ((applied_count++))
+        else
+            error "Failed to apply: $rel_path"
+            ((failed_count++))
+        fi
+    done < <(find "$patch_dir" -name '*.patch' -type f | sort)
+
+    if [ "$failed_count" -eq 0 ]; then
+        success "Source tree patches applied successfully ($applied_count files)"
+    else
+        warning "Source tree patches completed with $failed_count failures ($applied_count successful)"
+    fi
+
+    return $failed_count
+}
+
 validate_environment() {
     if [ -z "$IMMORTALWRT_VERSION" ]; then
         error "IMMORTALWRT_VERSION not specified"
@@ -133,6 +177,9 @@ main() {
     total_failed=$((total_failed + $?))
 
     apply_patches "kernel/files" "" "$IMMORTALWRT_DIR/target/linux/mediatek/files" "Kernel files patches"
+    total_failed=$((total_failed + $?))
+
+    apply_tree_patches
     total_failed=$((total_failed + $?))
 
     echo ""

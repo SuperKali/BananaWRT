@@ -171,6 +171,12 @@ jobs:
         git clone $REPO_URL -b v"${{ matrix.version }}" immortalwrt
         echo "REPO_BRANCH=${{ matrix.version }}" >> $GITHUB_ENV
 
+    - name: Apply Custom Patch Files
+      run: |
+        chmod +x scripts/utils/patch-manager.sh
+        cd ${{ runner.workspace }}/immortalwrt
+        $GITHUB_WORKSPACE/scripts/utils/patch-manager.sh ${{ matrix.version }} ${{ github.event.inputs.release_type }} ${{ runner.workspace }}/immortalwrt
+
     - name: Apply Custom Feeds Configuration
       run: |
         [ -e ${{ env.FEEDS_CONF }} ] && mv ${{ env.FEEDS_CONF }} ${{ runner.workspace }}/immortalwrt/feeds.conf.default

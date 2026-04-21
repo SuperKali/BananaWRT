@@ -68,17 +68,17 @@ jobs:
         GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         ARCH: ${{ inputs.architecture }}
       run: |
-        FREE=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100" 2>/dev/null \
-          | jq --arg arch "$ARCH" '[.runners[] | select(.status == "online") | select(.busy == false) | select([.labels[].name] | contains(["self-hosted", $arch]))] | length' \
+        COUNT=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100" 2>/dev/null \
+          | jq --arg arch "$ARCH" '[.runners[] | select(.status == "online") | select([.labels[].name] | contains(["self-hosted", $arch]))] | length' \
           || echo "0")
-        if [ "$FREE" -gt 0 ]; then
-          echo "Found $FREE free self-hosted $ARCH runner(s); using self-hosted."
+        if [ "$COUNT" -gt 0 ]; then
+          echo "Found $COUNT online self-hosted $ARCH runner(s); using self-hosted."
           echo "runner=[\"self-hosted\",\"$ARCH\"]" >> "$GITHUB_OUTPUT"
         elif [ "$ARCH" = "ARM64" ]; then
-          echo "No free self-hosted ARM64 runner; falling back to ubuntu-24.04-arm."
+          echo "No self-hosted ARM64 runner online; falling back to ubuntu-24.04-arm."
           echo 'runner="ubuntu-24.04-arm"' >> "$GITHUB_OUTPUT"
         else
-          echo "No free self-hosted X64 runner; falling back to ubuntu-latest."
+          echo "No self-hosted X64 runner online; falling back to ubuntu-latest."
           echo 'runner="ubuntu-latest"' >> "$GITHUB_OUTPUT"
         fi
 
@@ -128,18 +128,18 @@ jobs:
       run: |
         git clone $REPO_URL -b v"$REPO_BRANCH" immortalwrt
 
+    - name: Apply Custom Patch Files
+      run: |
+        chmod +x scripts/utils/patch-manager.sh
+        cd ${{ runner.workspace }}/immortalwrt
+        $GITHUB_WORKSPACE/scripts/utils/patch-manager.sh ${{ env.REPO_BRANCH }} ${{ env.BANANAWRT_RELEASE }} ${{ runner.workspace }}/immortalwrt
+
     - name: Apply Custom Feeds Configuration
       run: |
         [ -e ${{ env.FEEDS_CONF }} ] && mv ${{ env.FEEDS_CONF }} ${{ runner.workspace }}/immortalwrt/feeds.conf.default
         chmod +x ${{ env.REPO_SCRIPT }}
         cd ${{ runner.workspace }}/immortalwrt
         $GITHUB_WORKSPACE/${{ env.REPO_SCRIPT }} ${{ env.FEED_BRANCH }}
-
-    - name: Apply Custom Patch Files
-      run: |
-        chmod +x scripts/utils/patch-manager.sh
-        cd ${{ runner.workspace }}/immortalwrt
-        $GITHUB_WORKSPACE/scripts/utils/patch-manager.sh ${{ env.REPO_BRANCH }} ${{ env.BANANAWRT_RELEASE }} ${{ runner.workspace }}/immortalwrt
 
     - name: Update and Install Package Feeds
       working-directory: ${{ runner.workspace }}/immortalwrt
