@@ -151,7 +151,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # ImmortalWRT refuses to compile as root. We create `builder` (uid 1000) and
 # grant passwordless sudo for the rare step that still needs root (e.g.
 # timedatectl on the host runner — no-op in container).
-RUN groupadd --system --gid 1000 builder \
+RUN userdel --remove --force ubuntu 2>/dev/null || true \
+    && groupadd --system --gid 1000 builder \
     && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash builder \
     && printf 'builder ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/builder \
     && chmod 440 /etc/sudoers.d/builder
