@@ -207,6 +207,7 @@ jobs:
           key: ${{ steps.cache.outputs.ccache }}
           restore-keys: |
             ccache-${{ steps.cache.outputs.arch_tag }}-${{ steps.resolve.outputs.version_line }}-
+            ${{ runner.arch == 'X64' && format('ccache-{0}-{1}-', steps.resolve.outputs.version_line, steps.resolve.outputs.track) || 'bananawrt-never-match-' }}
 
       - name: Restore feeds/ cache
         uses: actions/cache@v4
@@ -223,6 +224,7 @@ jobs:
           key: ${{ steps.cache.outputs.staging }}
           restore-keys: |
             staging-${{ steps.cache.outputs.arch_tag }}-${{ steps.resolve.outputs.version_line }}-
+            ${{ runner.arch == 'X64' && format('staging-{0}-{1}-', steps.resolve.outputs.version_line, steps.resolve.outputs.track) || 'bananawrt-never-match-' }}
 
       - name: Run compile.sh (no package stage)
         env:

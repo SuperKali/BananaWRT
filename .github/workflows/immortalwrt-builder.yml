@@ -162,9 +162,13 @@ jobs:
         with:
           path: workspace/immortalwrt/.ccache
           key: ${{ steps.cache.outputs.ccache }}
+          # The third entry rescues pre-arch-split legacy caches when running
+          # on X64 (the only arch that produced them). On any other runner it
+          # expands to a placeholder prefix that will never match.
           restore-keys: |
             ccache-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
             ccache-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-
+            ${{ runner.arch == 'X64' && format('ccache-{0}-{1}-', env.BANANAWRT_VERSION_LINE, env.BANANAWRT_TRACK) || 'bananawrt-never-match-' }}
 
       - name: Restore feeds/ cache
         uses: actions/cache@v4
@@ -181,6 +185,7 @@ jobs:
           key: ${{ steps.cache.outputs.staging }}
           restore-keys: |
             staging-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
+            ${{ runner.arch == 'X64' && format('staging-{0}-{1}-', env.BANANAWRT_VERSION_LINE, env.BANANAWRT_TRACK) || 'bananawrt-never-match-' }}
 
       - name: Run BananaWRT compile.sh
         env:
