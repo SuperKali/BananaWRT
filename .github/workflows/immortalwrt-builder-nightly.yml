@@ -24,6 +24,15 @@ on:
   schedule:
     - cron: 0 0 * * 0
 
+# Reusable workflows inherit the caller's permissions as an upper bound.
+# Declare every permission the reusable (immortalwrt-builder.yml) needs so
+# they actually take effect — including actions:write for
+# Mattraks/delete-workflow-runs.
+permissions:
+  contents: write
+  packages: read
+  actions: write
+
 jobs:
   resolve:
     runs-on: ubuntu-latest

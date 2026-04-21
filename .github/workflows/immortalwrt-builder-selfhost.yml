@@ -42,6 +42,11 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: write
+  packages: read
+  actions: write
+
 jobs:
   build:
     uses: ./.github/workflows/immortalwrt-builder.yml

@@ -15,6 +15,11 @@ on:
   schedule:
     - cron: 0 0 1 * *
 
+permissions:
+  contents: write
+  packages: read
+  actions: write
+
 jobs:
   resolve:
     runs-on: ubuntu-latest

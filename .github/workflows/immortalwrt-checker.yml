@@ -13,6 +13,11 @@ on:
     - cron: '0 */23 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write         # commit + push the version bump branch
+  pull-requests: write    # peter-evans/create-pull-request
+  actions: write          # Mattraks/delete-workflow-runs
+
 jobs:
   check-and-bump:
     runs-on: ubuntu-24.04
