@@ -1,0 +1,67 @@
+#
+# File: .github/workflows/ghcr-cleanup.yml
+# Description: Prune old BananaWRT builder image versions on GHCR.
+#              Uses actions/delete-package-versions to keep the N most recent
+#              (by creation date) and drop the rest, leaving tagged `latest`
+#              pointers untouched as long as they remain among the N newest.
+#
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
+#
+# This is free software, licensed under the MIT License.
+#
+
+name: GHCR Cleanup
+
+on:
+  schedule:
+    # Weekly, Sunday 03:05 UTC
+    - cron: '5 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: 'Number of most-recent image versions to keep'
+        required: false
+        type: string
+        default: '10'
+      include_untagged:
+        description: 'Also prune untagged (dangling) versions'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  cleanup:
+    name: Prune old image versions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Keep last N tagged versions
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: bananawrt-builder
+          package-type: container
+          min-versions-to-keep: ${{ inputs.keep || '10' }}
+          delete-only-untagged-versions: false
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      - name: Clean up all untagged (dangling) versions
+        if: inputs.include_untagged != false
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: bananawrt-builder
+          package-type: container
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: true
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      - name: Summary
+        run: |
+          {
+            echo '## GHCR cleanup completed'
+            echo
+            echo "- Kept the most recent **${{ inputs.keep || '10' }}** tagged versions of \`bananawrt-builder\`"
+            echo "- Deleted untagged/dangling versions: \`${{ inputs.include_untagged || 'true' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

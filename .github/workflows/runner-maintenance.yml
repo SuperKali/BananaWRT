@@ -1,0 +1,137 @@
+#
+# File: .github/workflows/runner-maintenance.yml
+# Description: Periodic housekeeping for self-hosted runners.
+#              Pre-pulls the BananaWRT builder image (warm cache) and prunes
+#              Docker leftovers older than a threshold so the host disk
+#              doesn't fill up between builds.
+#
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
+#
+# This is free software, licensed under the MIT License.
+#
+
+name: Runner Maintenance
+
+on:
+  schedule:
+    # Daily at 03:17 UTC — off-peak, avoids clashes with weekly image rebuild
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      prune_older_than_hours:
+        description: 'Prune Docker resources older than N hours'
+        required: false
+        type: string
+        default: '168'
+      image_ref:
+        description: 'Builder image to pre-pull'
+        required: false
+        type: string
+        default: 'ghcr.io/superkali/bananawrt-builder:latest'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  resolve:
+    name: Discover self-hosted runners
+    runs-on: ubuntu-latest
+    outputs:
+      runners: ${{ steps.list.outputs.runners }}
+    steps:
+      - name: List online self-hosted runners
+        id: list
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          # Build a matrix of every online self-hosted runner, keyed by
+          # (label set). We maintain each one independently.
+          MATRIX=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100" 2>/dev/null \
+            | jq -c '
+                [.runners[]
+                 | select(.status == "online")
+                 | select([.labels[].name] | index("self-hosted"))
+                 | {
+                     name: .name,
+                     labels: ([.labels[].name] | map(select(. != "Linux" and . != "Windows" and . != "macOS")))
+                   }]
+              ' \
+            || echo '[]')
+          echo "Discovered runners: $MATRIX"
+          # Format suitable for strategy.matrix.include
+          INCLUDE=$(echo "$MATRIX" | jq -c '{include: [.[] | {name, labels}]}')
+          # If empty, produce a valid but empty matrix so downstream jobs are skipped
+          if [ "$(echo "$MATRIX" | jq 'length')" -eq 0 ]; then
+            echo "runners={\"include\":[]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "runners=$INCLUDE" >> "$GITHUB_OUTPUT"
+          fi
+
+  maintain:
+    name: Maintain ${{ matrix.name }}
+    needs: resolve
+    if: fromJSON(needs.resolve.outputs.runners).include[0] != null
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.resolve.outputs.runners) }}
+    runs-on: ${{ matrix.labels }}
+    steps:
+      - name: Pre-pull BananaWRT builder image (warm cache)
+        env:
+          IMAGE: ${{ inputs.image_ref || 'ghcr.io/superkali/bananawrt-builder:latest' }}
+        run: |
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "::warning::Docker not installed on ${{ matrix.name }} — skipping"
+            exit 0
+          fi
+          echo "::group::docker login ghcr.io"
+          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+          echo "::endgroup::"
+
+          echo "::group::docker pull $IMAGE"
+          docker pull "$IMAGE"
+          echo "::endgroup::"
+
+          docker logout ghcr.io >/dev/null 2>&1 || true
+
+      - name: Prune stopped containers / dangling images / old buildx cache
+        env:
+          HOURS: ${{ inputs.prune_older_than_hours || '168' }}
+        run: |
+          if ! command -v docker >/dev/null 2>&1; then
+            exit 0
+          fi
+          FILTER="until=${HOURS}h"
+          echo "::group::docker container prune ($FILTER)"
+          docker container prune --force --filter "$FILTER" || true
+          echo "::endgroup::"
+
+          echo "::group::docker image prune (all, $FILTER)"
+          docker image prune --all --force --filter "$FILTER" || true
+          echo "::endgroup::"
+
+          echo "::group::docker builder prune ($FILTER)"
+          docker builder prune --force --filter "$FILTER" || true
+          echo "::endgroup::"
+
+          echo "::group::docker system df"
+          docker system df || true
+          echo "::endgroup::"
+
+      - name: Summary
+        run: |
+          {
+            echo "## Maintenance on ${{ matrix.name }}"
+            echo
+            echo '```'
+            df -hT / 2>/dev/null || true
+            echo '```'
+            echo
+            if command -v docker >/dev/null 2>&1; then
+              echo '### Docker usage'
+              echo '```'
+              docker system df || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -216,6 +216,7 @@ jobs:
           name: BananaWRT_firmware_${{ needs.resolve-runner.outputs.release_date }}
           path: workspace/immortalwrt/bin/targets/*/*/*
           if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload additional_pack artefacts
         if: success()
@@ -224,6 +225,7 @@ jobs:
           name: BananaWRT_packages_${{ needs.resolve-runner.outputs.release_date }}
           path: workspace/immortalwrt/bin/packages/*/additional_pack/*.ipk
           if-no-files-found: ignore
+          retention-days: 7
 
       - name: Prune workflow history
         if: success()
