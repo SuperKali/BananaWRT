@@ -3,6 +3,56 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2026-04-22]
+
+### 🧩 Additional Packages
+
+- 🛠️ workflows: raise container pid/ulimit caps for sdk builds by @SuperKali  
+- 🛠️ workflows: inline builder image ref (env not allowed in container.image) by @SuperKali  
+- 🛠️ workflows: run builds inside the bananawrt builder container by @SuperKali  
+- 💅 `luci-app-3ginfo`-lite: import ui redesign from v25.12-snap by @SuperKali  
+- 🛠️ workflows: skip apk signing-key injection for ipk builds by @SuperKali  
+- 🛠️ workflows: rewrite feeds.conf.default to pin additional_pack at main by @SuperKali  
+- 🛠️ workflows: dynamic runner selection across self-hosted and github-hosted by @SuperKali  
+- 🐛 `banana-utils`: fix apk feed url to use flat packages.adb layout by @SuperKali  
+- 🐛 `luci-app-3ginfo`-lite: fix fm350-gl 5g nr sinr formula by @SuperKali  
+- 🐛 `luci-app-3ginfo`-lite: fix missing nr signal stats for fm160 by @SuperKali  
+- ➕ `luci-app-3ginfo`-lite: add tri cascade vos_5g / compal rxm-g1 modem definition by @SuperKali  
+- ➕ `luci-app-3ginfo`-lite: add tri cascade vos_5g / compal rxm-g1 modem definition by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🐛 fix(ci): use github_token for package version deletion by @SuperKali  
+- 🛠️ dockerfile: pin builder user to uid 1001 to match ubuntu-latest by @SuperKali  
+- 🛠️ dockerfile: dynamic uid remap entrypoint with gosu by @SuperKali  
+- 🐛 fix(container): fix uid mismatch between container user and self-hosted runner by @SuperKali  
+- 🐛 fix(ci): declare actions:write on callers so run pruning works by @SuperKali  
+- 🐛 fix(ci): grant actions:write so workflow-history pruning can delete by @SuperKali  
+- 🐛 fix(package): neutralise sigpipe (141) from head in pipefail shell by @SuperKali  
+- 🐛 fix(package): correctly detect kernel version by @SuperKali  
+- 🐛 fix(ci): reuse pre-arch-split caches on x64 via conditional fallback by @SuperKali  
+- 🐛 fix(build): multiple correctness issues found during audit by @SuperKali  
+- 🐛 fix(ci): upload both .ipk and .apk additional_pack artefacts by @SuperKali  
+- 🐛 fix(build): make ccache opt-in, default off by @SuperKali  
+- 🐛 fix(build): verbose fallback for ccache pre-build failure by @SuperKali  
+- 🐛 fix(build): pre-build tools/ccache to avoid liblzo race by @SuperKali  
+- 🔄 feat(ci): runner maintenance + ghcr cleanup + tighter artifact retention by @SuperKali  
+- 🐛 fix(ui): enable ansi colors in ci log viewers by @SuperKali  
+- ♻️ refactor(ci): sdk builder on compile.sh + retire setup-env.sh by @SuperKali  
+- 🐛 fix(docker): drop default ubuntu user before creating builder by @SuperKali  
+- 🐛 fix(ci): lowercase image name for oci references by @SuperKali  
+- 🏗️ feat(build): compile.sh orchestrator + docker builder image by @SuperKali  
+- 🐛 fix(v25.12): strip broken video feed from feeds.conf.default by @SuperKali  
+- 🔄 feat(ci): dynamic runner selection with github-hosted fallback by @SuperKali  
+- 🛠️ workflows: expose architecture input on nightly dispatcher by @SuperKali  
+- 🧹 chore: point feed_branch to main for all version lines by @SuperKali  
+- 🔼 build(deps): bump softprops/action-gh-release from 2.6.1 to 3.0.0 (#127) by @dependabot[bot]  
+- 🔄 update immortalwrt v25.12 to version v25.12.0-rc2 (#128) by @SuperKali  
+- 🔄 docs: update changelog for 2026-03-26 (#124) by @SuperKali  
+- 🐛 use directory listing url format for firmware download link by @SuperKali  
+
+---
+
 ## [2026-03-26]
 
 ### 🧩 Additional Packages
@@ -478,4 +528,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **March 26, 2026**
+📅 Release date: **April 22, 2026**
