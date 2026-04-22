@@ -89,7 +89,7 @@ jobs:
           echo "release_date=$(date +'%Y.%m.%d-%H%M')" >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build ${{ needs.resolve-runner.outputs.version_line }}/${{ inputs.release_type }}
+    name: Build ${{ needs.resolve-runner.outputs.version_line }}
     needs: resolve-runner
     runs-on: ${{ fromJSON(needs.resolve-runner.outputs.runner) }}
     env:
