@@ -302,7 +302,13 @@ if [ "$MODE" = "fota" ]; then
     FIRMWARE_VERSION=$(echo "$BUILD_INFO" | jq -r '.immortalwrt_version')
     log_info "Firmware Version: $FIRMWARE_VERSION"
 
-    # Download firmware files
+    # Download firmware files — forks may omit the version from basenames,
+    # so trust the names advertised by firmware-info.json instead of rebuilding them.
+    EMMC_PRELOADER=""
+    EMMC_BL31_UBOOT=""
+    EMMC_INITRAMFS=""
+    SYSUPGRADE_IMG=""
+
     for asset_pattern in "emmc-preloader" "emmc-bl31-uboot" "initramfs-recovery" "squashfs-sysupgrade"; do
         filename=$(echo "$BUILD_INFO" | jq -r ".files | keys[] | select(contains(\"$asset_pattern\"))")
 
@@ -330,6 +336,13 @@ if [ "$MODE" = "fota" ]; then
             fi
             log_success "$filename downloaded successfully."
         fi
+
+        case "$asset_pattern" in
+            emmc-preloader)      EMMC_PRELOADER="/tmp/$filename" ;;
+            emmc-bl31-uboot)     EMMC_BL31_UBOOT="/tmp/$filename" ;;
+            initramfs-recovery)  EMMC_INITRAMFS="/tmp/$filename" ;;
+            squashfs-sysupgrade) SYSUPGRADE_IMG="/tmp/$filename" ;;
+        esac
     done
 
 elif [ "$MODE" = "ota" ]; then
@@ -448,10 +461,12 @@ elif [ "$MODE" = "packages" ]; then
     exit 0
 fi
 
-EMMC_PRELOADER="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-preloader.bin"
-EMMC_BL31_UBOOT="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-bl31-uboot.fip"
-EMMC_INITRAMFS="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-initramfs-recovery.itb"
-SYSUPGRADE_IMG="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-squashfs-sysupgrade.itb"
+if [ "$MODE" = "ota" ]; then
+    EMMC_PRELOADER="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-preloader.bin"
+    EMMC_BL31_UBOOT="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-bl31-uboot.fip"
+    EMMC_INITRAMFS="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-initramfs-recovery.itb"
+    SYSUPGRADE_IMG="/tmp/immortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-squashfs-sysupgrade.itb"
+fi
 
 echo ""
 
@@ -461,10 +476,9 @@ else
     echo -e "\033[1;35mThe following files have been downloaded to \033[1;31m/tmp\033[0;35m:\033[0m"
 fi
 
-echo -e " - \033[1;36mimmortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-preloader.bin\033[0m"
-echo -e " - \033[1;36mimmortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-emmc-bl31-uboot.fip\033[0m"
-echo -e " - \033[1;36mimmortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-initramfs-recovery.itb\033[0m"
-echo -e " - \033[1;36mimmortalwrt-${FIRMWARE_VERSION}-mediatek-filogic-bananapi_bpi-r3-mini-squashfs-sysupgrade.itb\033[0m"
+for f in "$EMMC_PRELOADER" "$EMMC_BL31_UBOOT" "$EMMC_INITRAMFS" "$SYSUPGRADE_IMG"; do
+    echo -e " - \033[1;36m$(basename "$f")\033[0m"
+done
 echo ""
 echo -e "\033[1;35mPress Enter to continue or CTRL+C to abort...\033[0m"
 read -r dummy
