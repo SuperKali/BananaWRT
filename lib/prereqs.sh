@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# lib/prereqs.sh — validate host toolchain + Docker + CI secrets.
+# lib/prereqs.sh — validate host toolchain + CI secrets.
 #
 # Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
@@ -16,27 +16,12 @@ check_binary() {
     return 0
 }
 
-# check_docker - true when docker is usable from the current shell
-check_docker() {
-    if ! command -v docker >/dev/null 2>&1; then
-        display_alert err "Docker not found" "install docker-ce or use --no-docker"
-        return 1
-    fi
-    if ! docker info >/dev/null 2>&1; then
-        display_alert err "Docker daemon is not reachable" \
-            "ensure the daemon runs and your user is in the 'docker' group"
-        return 1
-    fi
-    return 0
-}
-
-# check_dialog - install dialog on-the-fly if missing (best effort)
+# check_dialog - flag missing dialog without installing (CI never needs it)
 check_dialog() {
     if command -v dialog >/dev/null 2>&1; then
         return 0
     fi
     if is_ci; then
-        # CI should never hit the interactive menu, just warn
         return 1
     fi
     display_alert warn "dialog is not installed — interactive menu disabled" \
@@ -53,10 +38,9 @@ ensure_workspace() {
     fi
 }
 
-# check_host_requirements - validate the minimal toolchain needed for any build
+# check_host_requirements - minimal toolchain to parse versions.json + run git
 check_host_requirements() {
     local missing=0
-    # Always required
     check_binary jq   'sudo apt-get install jq'   || missing=$((missing + 1))
     check_binary git  'sudo apt-get install git'  || missing=$((missing + 1))
     check_binary curl 'sudo apt-get install curl' || missing=$((missing + 1))
@@ -66,15 +50,15 @@ check_host_requirements() {
     fi
 }
 
-# check_build_host_requirements - full toolchain (only needed for --no-docker)
+# check_build_host_requirements - full build toolchain sanity
 check_build_host_requirements() {
     local missing=0
     local bin
     for bin in bison flex gcc g++ patch python3 unzip wget xxd zstd; do
-        check_binary "$bin" 'use --docker or install the apt packages listed in Dockerfile' || missing=$((missing + 1))
+        check_binary "$bin" 'run .github/scripts/setup-env.sh setup' || missing=$((missing + 1))
     done
     if (( missing > 0 )); then
-        exit_with_error "Build environment incomplete — re-run with --docker, or install the apt packages declared in ./Dockerfile"
+        exit_with_error "Build environment incomplete — run .github/scripts/setup-env.sh setup"
     fi
 }
 

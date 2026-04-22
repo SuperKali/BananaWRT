@@ -318,14 +318,6 @@ is_ci() {
     return 1
 }
 
-# in_container: true if we're already running inside Docker/Podman
-in_container() {
-    [[ -f /.dockerenv ]] && return 0
-    [[ -n "${BANANAWRT_IN_CONTAINER:-}" ]] && return 0
-    grep -qE '(docker|containerd|podman)' /proc/1/cgroup 2>/dev/null && return 0
-    return 1
-}
-
 # ──────────────────────────────────────────────────────────────────────────────
 #  String helpers
 # ──────────────────────────────────────────────────────────────────────────────

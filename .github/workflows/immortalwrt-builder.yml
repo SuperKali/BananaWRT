@@ -1,8 +1,8 @@
 #
-# immortalwrt-builder.yml — reusable BananaWRT firmware build.
-# Runs ./compile.sh --ci inside the pre-built container with layered
-# actions/cache restore/save and dynamic self-hosted ↔ GitHub-hosted runner
-# selection.
+# immortalwrt-builder.yml — reusable BananaWRT firmware build (bare-metal).
+# Runs ./compile.sh --ci directly on the selected runner with layered
+# actions/cache restore/save and dynamic self-hosted ↔ GitHub-hosted
+# runner selection.
 #
 # Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
 # Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
@@ -31,11 +31,6 @@ on:
         type: string
         default: ''
         description: 'Number of threads for compilation'
-      image_ref:
-        required: false
-        type: string
-        default: 'ghcr.io/superkali/bananawrt-builder:latest'
-        description: 'BananaWRT builder container image reference'
     secrets:
       PERSONAL_ACCESS_TOKEN:
         required: false
@@ -49,10 +44,8 @@ on:
 env:
   TZ: Europe/Rome
 
-# contents: checkout, packages: pull GHCR image, actions: prune run history
 permissions:
   contents: read
-  packages: read
   actions: write
 
 jobs:
@@ -90,13 +83,6 @@ jobs:
     name: Build ${{ needs.resolve-runner.outputs.version_line }}/${{ inputs.release_type }}
     needs: resolve-runner
     runs-on: ${{ fromJSON(needs.resolve-runner.outputs.runner) }}
-    container:
-      image: ${{ inputs.image_ref }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-      # Container runs as root so host-UID-owned bind mounts stay writable;
-      # compile.sh drops to `ubuntu` via gosu before invoking make.
     env:
       BANANAWRT_VERSION_LINE: ${{ needs.resolve-runner.outputs.version_line }}
       BANANAWRT_TRACK: ${{ inputs.release_type }}
@@ -113,17 +99,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Set Up Build Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: /bin/bash .github/scripts/setup-env.sh setup
+
+      - name: Set timezone
+        run: sudo timedatectl set-timezone "$TZ" || true
+
       - name: Authenticate git (private upstream access)
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
-          # Use --system so credentials survive the root→ubuntu re-exec
-          # compile.sh does. Rewrite any github.com URL to embed the PAT.
-          git config --system user.name  'GitHub Actions'
-          git config --system user.email 'actions@github.com'
-          git config --system --add safe.directory '*'
+          git config --global user.name  'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          git config --global --add safe.directory '*'
           if [ -n "${GITHUB_TOKEN:-}" ]; then
-            git config --system url."https://${GITHUB_TOKEN}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
+            printf 'machine github.com login %s\n' "$GITHUB_TOKEN" > "$HOME/.netrc"
+            chmod 600 "$HOME/.netrc"
           fi
 
       - name: Compute cache keys
@@ -157,11 +150,9 @@ jobs:
         with:
           path: workspace/immortalwrt/.ccache
           key: ${{ steps.cache.outputs.ccache }}
-          # Third entry rescues pre-arch-split legacy caches on X64 only.
           restore-keys: |
             ccache-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
             ccache-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-
-            ${{ runner.arch == 'X64' && format('ccache-{0}-{1}-', env.BANANAWRT_VERSION_LINE, env.BANANAWRT_TRACK) || 'bananawrt-never-match-' }}
 
       - name: Restore feeds/ cache
         uses: actions/cache@v4
@@ -178,7 +169,6 @@ jobs:
           key: ${{ steps.cache.outputs.staging }}
           restore-keys: |
             staging-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
-            ${{ runner.arch == 'X64' && format('staging-{0}-{1}-', env.BANANAWRT_VERSION_LINE, env.BANANAWRT_TRACK) || 'bananawrt-never-match-' }}
 
       - name: Run BananaWRT compile.sh
         env:
@@ -187,7 +177,7 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
-          ./compile.sh --ci --no-docker \
+          ./compile.sh --ci \
             --version-line "${BANANAWRT_VERSION_LINE}" \
             --track "${BANANAWRT_TRACK}" \
             --arch "${BANANAWRT_ARCH}" \
@@ -207,7 +197,6 @@ jobs:
             echo "| Track | \`${BANANAWRT_TRACK}\` |"
             echo "| ImmortalWRT | \`${BANANAWRT_IMMORTALWRT_VER}\` |"
             echo "| Architecture | \`${BANANAWRT_ARCH}\` |"
-            echo "| Image | \`${{ inputs.image_ref }}\` |"
             echo "| Release tag | \`${BANANAWRT_VERSION_LINE}-${BANANAWRT_RELEASE_DATE}\` |"
             if [ -n "$FIRMWARE_DIR" ]; then
               echo
@@ -250,5 +239,4 @@ jobs:
         if: always()
         run: |
           rm -rf "$HOME/.netrc" 2>/dev/null || true
-          # Drop build_dir/tmp between jobs; caches already captured what's needed.
           rm -rf workspace/immortalwrt/build_dir workspace/immortalwrt/tmp 2>/dev/null || true

@@ -11,20 +11,6 @@ set -Eeuo pipefail
 BANANAWRT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export BANANAWRT_ROOT
 
-# ImmortalWRT refuses root builds. When the CI container starts as root
-# (so actions/checkout can write to bind-mounted _work/_temp), drop to the
-# non-root `ubuntu` user via gosu before running any build stage.
-if [[ $EUID -eq 0 ]] && command -v gosu >/dev/null 2>&1 \
-        && id -u ubuntu >/dev/null 2>&1 \
-        && [[ -z "${BANANAWRT_DROPPED_PRIVS:-}" ]]; then
-    WORKSPACE_TARGET="${BANANAWRT_WORKSPACE:-$BANANAWRT_ROOT/workspace}"
-    mkdir -p "$WORKSPACE_TARGET"
-    chown -R ubuntu:ubuntu "$WORKSPACE_TARGET" 2>/dev/null || true
-    chown -R ubuntu:ubuntu "$BANANAWRT_ROOT" 2>/dev/null || true
-    export BANANAWRT_DROPPED_PRIVS=1
-    exec gosu ubuntu "$BANANAWRT_ROOT/compile.sh" "$@"
-fi
-
 # shellcheck source=lib/functions.sh
 source "$BANANAWRT_ROOT/lib/functions.sh"
 # shellcheck source=lib/banner.sh
@@ -35,19 +21,14 @@ source "$BANANAWRT_ROOT/lib/config.sh"
 source "$BANANAWRT_ROOT/lib/prereqs.sh"
 # shellcheck source=lib/interactive.sh
 source "$BANANAWRT_ROOT/lib/interactive.sh"
-# shellcheck source=lib/docker.sh
-source "$BANANAWRT_ROOT/lib/docker.sh"
 
 install_traps
 
-# ─── Defaults ─────────────────────────────────────────────────────────────────
 BANANAWRT_VERSION_LINE="${BANANAWRT_VERSION_LINE:-}"
 BANANAWRT_TRACK="${BANANAWRT_TRACK:-}"
 BANANAWRT_ARCH="${BANANAWRT_ARCH:-ARM64}"
 BANANAWRT_IMMORTALWRT_VER="${BANANAWRT_IMMORTALWRT_VER:-}"
 BANANAWRT_JOBS="${BANANAWRT_JOBS:-}"
-BANANAWRT_USE_DOCKER="${BANANAWRT_USE_DOCKER:-}"
-BANANAWRT_DOCKER_IMAGE="${BANANAWRT_DOCKER_IMAGE:-}"
 BANANAWRT_STAGE="${BANANAWRT_STAGE:-}"
 BANANAWRT_KEEP_SOURCE="${BANANAWRT_KEEP_SOURCE:-0}"
 BANANAWRT_CLEAN="${BANANAWRT_CLEAN:-}"
@@ -63,9 +44,6 @@ parse_args() {
             --arch|-a)         BANANAWRT_ARCH="$2";         shift 2 ;;
             --immortalwrt-version) BANANAWRT_IMMORTALWRT_VER="$2"; shift 2 ;;
             --jobs|-j)         BANANAWRT_JOBS="$2";         shift 2 ;;
-            --docker)          BANANAWRT_USE_DOCKER=1;      shift ;;
-            --no-docker)       BANANAWRT_USE_DOCKER=0;      shift ;;
-            --image)           BANANAWRT_DOCKER_IMAGE="$2"; shift 2 ;;
             --ci)              BANANAWRT_CI=1;              shift ;;
             --no-package)      BANANAWRT_NO_PACKAGE=1;      shift ;;
             --stage)           BANANAWRT_STAGE="$2";        shift 2 ;;
@@ -212,16 +190,6 @@ main() {
     validate_version_track "$BANANAWRT_VERSION_LINE" "$BANANAWRT_TRACK"
     resolved_paths
 
-    if [[ -z "$BANANAWRT_USE_DOCKER" ]]; then
-        if in_container; then
-            BANANAWRT_USE_DOCKER=0
-        elif command -v docker >/dev/null 2>&1 && ! is_ci; then
-            BANANAWRT_USE_DOCKER=1
-        else
-            BANANAWRT_USE_DOCKER=0
-        fi
-    fi
-
     local runner_type='local'
     if is_ci; then
         runner_type="${RUNNER_NAME:-CI}"
@@ -232,26 +200,6 @@ main() {
     show_config_summary
 
     BANANAWRT_TOTAL_START="$(date +%s)"
-
-    if [[ "$BANANAWRT_USE_DOCKER" == "1" ]] && ! in_container; then
-        display_title "Launching container"
-        check_docker
-        docker_pull
-        local -a fwd_args=()
-        [[ -n "$BANANAWRT_VERSION_LINE" ]]    && fwd_args+=( --version-line "$BANANAWRT_VERSION_LINE" )
-        [[ -n "$BANANAWRT_TRACK" ]]           && fwd_args+=( --track "$BANANAWRT_TRACK" )
-        [[ -n "$BANANAWRT_ARCH" ]]            && fwd_args+=( --arch "$BANANAWRT_ARCH" )
-        [[ -n "$BANANAWRT_IMMORTALWRT_VER" ]] && fwd_args+=( --immortalwrt-version "$BANANAWRT_IMMORTALWRT_VER" )
-        [[ -n "$BANANAWRT_JOBS" ]]            && fwd_args+=( --jobs "$BANANAWRT_JOBS" )
-        [[ -n "$BANANAWRT_STAGE" ]]           && fwd_args+=( --stage "$BANANAWRT_STAGE" )
-        [[ -n "$BANANAWRT_CLEAN" ]]           && fwd_args+=( --clean="$BANANAWRT_CLEAN" )
-        [[ "$BANANAWRT_KEEP_SOURCE" == "1" ]] && fwd_args+=( --keep-source )
-        [[ "${BANANAWRT_DEBUG:-0}" == "1" ]]  && fwd_args+=( --verbose )
-        [[ "$BANANAWRT_CI" == "1" ]]          && fwd_args+=( --ci )
-        [[ "$BANANAWRT_NO_PACKAGE" == "1" ]]  && fwd_args+=( --no-package )
-        docker_run_stage "${fwd_args[@]}"
-        return $?
-    fi
 
     case "${BANANAWRT_CLEAN:-}" in
         build)
