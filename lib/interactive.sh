@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 #
-# File: lib/interactive.sh
-# Description: dialog(1)-based interactive picker for version line, track,
-#              architecture, and docker toggle.
+# lib/interactive.sh — dialog(1) picker for version line/track/arch/docker.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
-# Sets (or leaves untouched if already set):
-#   BANANAWRT_VERSION_LINE, BANANAWRT_TRACK, BANANAWRT_ARCH, BANANAWRT_USE_DOCKER
+# Sets (when not already): BANANAWRT_VERSION_LINE, BANANAWRT_TRACK,
+# BANANAWRT_ARCH, BANANAWRT_USE_DOCKER.
 interactive_menu() {
     if ! check_dialog; then
         exit_with_error "dialog is not installed; either install it or pass --version-line/--track"

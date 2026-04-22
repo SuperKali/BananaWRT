@@ -1,16 +1,11 @@
 #
-# File: .github/workflows/immortalwrt-builder.yml
-# Description: Reusable workflow to build BananaWRT firmware.
-#              Delegates the actual build pipeline to ./compile.sh and runs it
-#              inside the pre-built BananaWRT builder container. Provides
-#              runner auto-resolution (self-hosted vs GitHub-hosted) and
-#              multi-layer build caching.
+# immortalwrt-builder.yml — reusable BananaWRT firmware build.
+# Runs ./compile.sh --ci inside the pre-built container with layered
+# actions/cache restore/save and dynamic self-hosted ↔ GitHub-hosted runner
+# selection.
 #
 # Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 name: BananaWRT Builder (Reusable)
@@ -54,10 +49,7 @@ on:
 env:
   TZ: Europe/Rome
 
-# Default permissions for every job:
-# - contents: read    — actions/checkout + git describe
-# - packages: read    — pull the BananaWRT builder image from GHCR
-# - actions:  write   — Mattraks/delete-workflow-runs can trim history
+# contents: checkout, packages: pull GHCR image, actions: prune run history
 permissions:
   contents: read
   packages: read
@@ -103,7 +95,8 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-      options: --user builder
+      # Container runs as root so host-UID-owned bind mounts stay writable;
+      # compile.sh drops to `ubuntu` via gosu before invoking make.
     env:
       BANANAWRT_VERSION_LINE: ${{ needs.resolve-runner.outputs.version_line }}
       BANANAWRT_TRACK: ${{ inputs.release_type }}
@@ -135,17 +128,14 @@ jobs:
         env:
           RUNNER_ARCH_TAG: ${{ runner.arch }}
         run: |
-          # Use version_line + track + .config hash as the primary cache axis.
           CONFIG_HASH=$(sha256sum "config/${BANANAWRT_VERSION_LINE}/${BANANAWRT_TRACK}/.config" | cut -c1-16)
           VERSION_HASH=$(sha256sum "config/${BANANAWRT_VERSION_LINE}/version.json" | cut -c1-16)
           PATCH_HASH=$(find "patch" -type f 2>/dev/null | sort | xargs -r sha256sum | sha256sum | cut -c1-16)
           PATCH_HASH="${PATCH_HASH:-none}"
           BASE="${BANANAWRT_VERSION_LINE}-${BANANAWRT_TRACK}-${BANANAWRT_IMMORTALWRT_VER}"
-          # dl/ and feeds/ contain upstream sources — identical across archs.
+          # dl/, feeds/ are arch-agnostic; ccache, staging_dir hold host-native binaries.
           echo "dl=dl-${BASE}-${VERSION_HASH}"                                  >> "$GITHUB_OUTPUT"
           echo "feeds=feeds-${BASE}-${VERSION_HASH}"                            >> "$GITHUB_OUTPUT"
-          # ccache and staging_dir contain host-native binaries — must be
-          # isolated per build-host architecture.
           echo "ccache=ccache-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}"        >> "$GITHUB_OUTPUT"
           echo "staging=staging-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}-${PATCH_HASH}" >> "$GITHUB_OUTPUT"
           echo "arch_tag=${RUNNER_ARCH_TAG}"                                    >> "$GITHUB_OUTPUT"
@@ -164,9 +154,7 @@ jobs:
         with:
           path: workspace/immortalwrt/.ccache
           key: ${{ steps.cache.outputs.ccache }}
-          # The third entry rescues pre-arch-split legacy caches when running
-          # on X64 (the only arch that produced them). On any other runner it
-          # expands to a placeholder prefix that will never match.
+          # Third entry rescues pre-arch-split legacy caches on X64 only.
           restore-keys: |
             ccache-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
             ccache-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-
@@ -259,6 +247,5 @@ jobs:
         if: always()
         run: |
           rm -rf "$HOME/.netrc" 2>/dev/null || true
-          # Preserve caches — GitHub cache action has already captured what
-          # we need. Dropping build_dir/tmp keeps the runner clean between jobs.
+          # Drop build_dir/tmp between jobs; caches already captured what's needed.
           rm -rf workspace/immortalwrt/build_dir workspace/immortalwrt/tmp 2>/dev/null || true

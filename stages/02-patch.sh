@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 #
-# File: stages/02-patch.sh
-# Description: Apply BananaWRT patches onto the ImmortalWRT tree. Delegates the
-#              actual file copy / patch application to scripts/utils/patch-manager.sh
-#              which already supports kernel/dts, kernel/files and tree patches.
+# stages/02-patch.sh — apply BananaWRT patches via patch-manager.sh.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 stage_patch() {

@@ -1,13 +1,8 @@
 #
-# File: .github/workflows/ghcr-cleanup.yml
-# Description: Prune old BananaWRT builder image versions on GHCR.
-#              Uses actions/delete-package-versions to keep the N most recent
-#              (by creation date) and drop the rest, leaving tagged `latest`
-#              pointers untouched as long as they remain among the N newest.
+# ghcr-cleanup.yml — keep the N most-recent bananawrt-builder image
+# versions + drop dangling untagged blobs. Runs weekly.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 name: GHCR Cleanup

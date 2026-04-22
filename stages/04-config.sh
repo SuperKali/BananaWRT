@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
 #
-# File: stages/04-config.sh
-# Description: Remove upstream packages that conflict with the custom feed,
-#              drop the BananaWRT .config into place, install additional_pack,
-#              inject build metadata, and merge the upstream diffconfig.
+# stages/04-config.sh — remove stock pkgs, drop .config, install additional_pack,
+#                       inject metadata, merge upstream diffconfig, make defconfig.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 stage_config() {

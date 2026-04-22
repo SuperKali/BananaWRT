@@ -1,25 +1,16 @@
 #!/usr/bin/env bash
 #
-# File: lib/functions.sh
-# Description: Core helpers for compile.sh - colored output, timers, utils
+# lib/functions.sh — shared helpers (color output, timers, utilities).
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
-# ──────────────────────────────────────────────────────────────────────────────
-#  Colors (respect NO_COLOR / non-tty; force on in CI or via FORCE_COLOR)
-# ──────────────────────────────────────────────────────────────────────────────
+# CI log viewers render ANSI even though stdout is piped, so force colors
+# when CI/GITHUB_ACTIONS is set (unless NO_COLOR is explicit).
 _color_enabled=0
 if [[ -z "${NO_COLOR:-}" ]]; then
-    if [[ -t 1 ]]; then
-        _color_enabled=1
-    elif [[ -n "${FORCE_COLOR:-}" ]]; then
-        _color_enabled=1
-    elif [[ "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
-        # GitHub Actions / GitLab / CircleCI / most CI systems render ANSI
-        # escapes in their log viewer even though stdout is a pipe.
+    if [[ -t 1 || -n "${FORCE_COLOR:-}" \
+          || "${CI:-}" == "true" || "${GITHUB_ACTIONS:-}" == "true" ]]; then
         _color_enabled=1
     fi
 fi
@@ -44,9 +35,6 @@ else
 fi
 unset _color_enabled
 
-# ──────────────────────────────────────────────────────────────────────────────
-#  Unicode glyphs (with ASCII fallback if LANG doesn't include UTF-8)
-# ──────────────────────────────────────────────────────────────────────────────
 if [[ "${LANG:-}" == *UTF-8* || "${LC_ALL:-}" == *UTF-8* ]]; then
     G_OK='✓'   G_FAIL='✗'   G_WARN='!'   G_INFO='›'   G_STEP='▸'
     G_DOT='•'  G_ARROW='→'  G_BULLET='─'

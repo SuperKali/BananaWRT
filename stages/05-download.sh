@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 #
-# File: stages/05-download.sh
-# Description: Populate dl/ with upstream sources via `make download`.
-#              Reports cache hit/miss ratio based on files present before vs.
-#              after the step.
+# stages/05-download.sh — `make download` + dl/ cache hit-rate report.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 stage_download() {

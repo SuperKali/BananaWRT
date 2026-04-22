@@ -146,12 +146,10 @@ else
 fi
 
 # ── 7. UMask=0000 drop-in so `_temp/*` is world-writable ─────────────────────
-# GitHub Actions `container:` bind-mounts the runner's _work/_temp into the
-# container. actions/checkout writes save_state files there. If the container
-# user (e.g. `builder` UID 1000) doesn't match the runner host UID (e.g.
-# github-worker-02 UID 1002), it can't write those files → EACCES.
-# UMask=0000 forces the runner to create those files mode 666/777 so any
-# container UID can write. Doesn't change file _ownership_, just the mode.
+# The runner bind-mounts _work/_temp into every container job; without this
+# drop-in, files created by the runner (UID 1001/1002/…) aren't writable by
+# a container user with a different UID — actions/checkout then fails with
+# EACCES on _runner_file_commands/save_state_*.
 if [[ -n "$RUNNER_SERVICE" ]]; then
     log "Installing UMask=0000 drop-in for $RUNNER_SERVICE"
     drop_dir="/etc/systemd/system/${RUNNER_SERVICE}.d"
@@ -165,8 +163,7 @@ if [[ -n "$RUNNER_SERVICE" ]]; then
     run "systemctl daemon-reload"
     ok "UMask drop-in installed"
 
-    # Any _work/ already created by a past run still has mode 700/755; the
-    # drop-in only affects files created from now on. Loosen existing tree too.
+    # UMask only affects files created after restart — also loosen existing tree.
     work_dir="$(systemctl show -p WorkingDirectory --value "$RUNNER_SERVICE" 2>/dev/null)/_work"
     if [[ -d "$work_dir" ]]; then
         log "Loosening existing $work_dir (chmod -R a+rwX)"

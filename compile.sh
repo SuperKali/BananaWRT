@@ -1,28 +1,30 @@
 #!/usr/bin/env bash
 #
-# File: compile.sh
-# Description: BananaWRT firmware build orchestrator.
-#
-#              This is the single entry point for both local development
-#              builds and CI invocations. It sources lib/*.sh for helpers,
-#              parses CLI arguments (or launches a dialog menu if called
-#              without any), optionally re-executes itself inside the
-#              BananaWRT builder container, then runs the stages/*.sh
-#              pipeline.
+# compile.sh — BananaWRT firmware build orchestrator.
 #
 # Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
+# MIT License — see /LICENSE.
 #
 
 set -Eeuo pipefail
 
-# ─── Resolve repo root ────────────────────────────────────────────────────────
 BANANAWRT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export BANANAWRT_ROOT
 
-# ─── Load libraries ───────────────────────────────────────────────────────────
+# ImmortalWRT refuses root builds. When the CI container starts as root
+# (so actions/checkout can write to bind-mounted _work/_temp), drop to the
+# non-root `ubuntu` user via gosu before running any build stage.
+if [[ $EUID -eq 0 ]] && command -v gosu >/dev/null 2>&1 \
+        && id -u ubuntu >/dev/null 2>&1 \
+        && [[ -z "${BANANAWRT_DROPPED_PRIVS:-}" ]]; then
+    WORKSPACE_TARGET="${BANANAWRT_WORKSPACE:-$BANANAWRT_ROOT/workspace}"
+    mkdir -p "$WORKSPACE_TARGET"
+    chown -R ubuntu:ubuntu "$WORKSPACE_TARGET" 2>/dev/null || true
+    chown -R ubuntu:ubuntu "$BANANAWRT_ROOT" 2>/dev/null || true
+    export BANANAWRT_DROPPED_PRIVS=1
+    exec gosu ubuntu "$BANANAWRT_ROOT/compile.sh" "$@"
+fi
+
 # shellcheck source=lib/functions.sh
 source "$BANANAWRT_ROOT/lib/functions.sh"
 # shellcheck source=lib/banner.sh
@@ -53,7 +55,6 @@ BANANAWRT_CI="${BANANAWRT_CI:-}"
 BANANAWRT_NO_PACKAGE="${BANANAWRT_NO_PACKAGE:-0}"
 BANANAWRT_RELEASE_DATE="${BANANAWRT_RELEASE_DATE:-$(date +'%Y.%m.%d-%H%M')}"
 
-# ─── Argument parser ─────────────────────────────────────────────────────────
 parse_args() {
     while (( $# > 0 )); do
         case "$1" in
@@ -88,7 +89,6 @@ parse_args() {
     export BANANAWRT_DEBUG
 }
 
-# ─── Stage runner ────────────────────────────────────────────────────────────
 declare -ga BANANAWRT_STAGE_ORDER=(clone patch feeds config download compile package)
 declare -gA BANANAWRT_STAGE_TITLES=(
     [clone]='Clone source tree'
@@ -101,7 +101,6 @@ declare -gA BANANAWRT_STAGE_TITLES=(
 )
 declare -gA BANANAWRT_STAGE_DURATIONS=()
 
-# load a stage file lazily
 load_stage() {
     local name="$1"
     local file
@@ -145,8 +144,7 @@ run_pipeline() {
         fi
         stages=( "$BANANAWRT_STAGE" )
     fi
-    # Drop the package stage when the caller asked for a build-only run
-    # (used by the SDK workflow, which does its own post-processing)
+    # SDK workflow sets --no-package to skip firmware publishing stage
     if [[ "$BANANAWRT_NO_PACKAGE" == "1" ]]; then
         local -a filtered=()
         local s
@@ -164,12 +162,8 @@ run_pipeline() {
     done
 }
 
-# ─── Exit hook ────────────────────────────────────────────────────────────────
 on_exit() {
     local rc="$1"
-    if [[ "$BANANAWRT_KEEP_SOURCE" != "1" && "$rc" != "0" ]]; then
-        : # leave tree for debugging on failure
-    fi
     if [[ -n "${BANANAWRT_TOTAL_START:-}" ]]; then
         local total=$(( $(date +%s) - BANANAWRT_TOTAL_START ))
         if (( rc == 0 )); then
@@ -203,15 +197,11 @@ display_summary() {
     display_box 'Build Summary' "${rows[@]}"
 }
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
 main() {
     parse_args "$@"
-
-    # Minimal host toolchain required even to parse versions.json
     check_host_requirements
     ensure_workspace
 
-    # No required args provided? → launch interactive picker
     if [[ -z "$BANANAWRT_VERSION_LINE" || -z "$BANANAWRT_TRACK" ]]; then
         if is_ci; then
             exit_with_error "CI mode requires --version-line and --track"
@@ -222,7 +212,6 @@ main() {
     validate_version_track "$BANANAWRT_VERSION_LINE" "$BANANAWRT_TRACK"
     resolved_paths
 
-    # Default: use docker when available AND we are NOT already inside a container.
     if [[ -z "$BANANAWRT_USE_DOCKER" ]]; then
         if in_container; then
             BANANAWRT_USE_DOCKER=0
@@ -233,7 +222,6 @@ main() {
         fi
     fi
 
-    # Runner-type hint for banner (CI detected separately)
     local runner_type='local'
     if is_ci; then
         runner_type="${RUNNER_NAME:-CI}"
@@ -245,12 +233,10 @@ main() {
 
     BANANAWRT_TOTAL_START="$(date +%s)"
 
-    # Re-exec inside container if requested and not already inside one
     if [[ "$BANANAWRT_USE_DOCKER" == "1" ]] && ! in_container; then
         display_title "Launching container"
         check_docker
         docker_pull
-        # Rebuild argv for container invocation (preserve everything except --docker)
         local -a fwd_args=()
         [[ -n "$BANANAWRT_VERSION_LINE" ]]    && fwd_args+=( --version-line "$BANANAWRT_VERSION_LINE" )
         [[ -n "$BANANAWRT_TRACK" ]]           && fwd_args+=( --track "$BANANAWRT_TRACK" )
@@ -267,14 +253,6 @@ main() {
         return $?
     fi
 
-    # Native build path
-    if [[ "$BANANAWRT_USE_DOCKER" == "0" && "$BANANAWRT_CI" != "1" ]]; then
-        # Non-CI host mode: defer to the user for heavy deps (or they run
-        # --docker); check_build_host_requirements is intentionally soft here.
-        :
-    fi
-
-    # Optional clean
     case "${BANANAWRT_CLEAN:-}" in
         build)
             display_alert info "Cleaning build_dir/ (preserving dl/ and ccache)"

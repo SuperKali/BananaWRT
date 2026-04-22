@@ -1,14 +1,9 @@
 #
-# File: .github/workflows/docker-image.yml
-# Description: Build and publish the BananaWRT builder container to GHCR.
-#              Each architecture is built natively on its own runner
-#              (ubuntu-latest for amd64, ubuntu-24.04-arm for arm64) and the
-#              per-arch images are then merged into a single multi-arch
-#              manifest. Avoids QEMU entirely.
+# docker-image.yml — build + publish BananaWRT builder image to GHCR.
+# Native per-arch fan-out (amd64 on ubuntu-latest, arm64 on ubuntu-24.04-arm)
+# merged into a multi-arch manifest. No QEMU.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 name: BananaWRT Builder Image

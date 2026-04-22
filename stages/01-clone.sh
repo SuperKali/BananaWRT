@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
 #
-# File: stages/01-clone.sh
-# Description: Materialise the ImmortalWRT source tree at the pinned tag
-#              specified by BANANAWRT_IMMORTALWRT_VER.
+# stages/01-clone.sh — materialise ImmortalWRT tree at pinned tag.
 #
-#              The destination directory may already contain cache artefacts
-#              (dl/, .ccache/, feeds/, staging_dir/) restored by actions/cache
-#              **before** this stage runs, so a plain `git clone` into a
-#              non-empty directory would fail. We therefore use `git init`
-#              + `git fetch --depth 1` + `git checkout` to drop the sources
-#              alongside any cached subdirectories without disturbing them.
+# Uses `git init` + `git fetch --depth 1` + `git checkout` instead of `git
+# clone` because actions/cache restores (dl/, .ccache/, feeds/, staging_dir/)
+# populate the target dir before this stage runs, and clone refuses non-empty
+# destinations.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 # This is free software, licensed under the MIT License.
 #

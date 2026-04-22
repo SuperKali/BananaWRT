@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 #
-# File: lib/docker.sh
-# Description: Re-exec compile.sh inside the BananaWRT builder container.
-#              Handles image pulling, multi-arch selection, and volume mounts.
+# lib/docker.sh — pull the builder image, re-exec compile.sh inside it.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 : "${BANANAWRT_DOCKER_IMAGE_DEFAULT:=ghcr.io/superkali/bananawrt-builder:latest}"

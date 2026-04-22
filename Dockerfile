@@ -150,27 +150,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     esac
 
 # ─── Non-root user for builds ───────────────────────────────────────────────
-# ImmortalWRT refuses to compile as root. We create `builder` at UID 1001 to
-# match the GitHub-hosted ubuntu-latest runner (so the container can write to
-# /__w/_temp/_runner_file_commands/*). Self-hosted runners rely on
-# UMask=0000 set by scripts/setup-runner.sh to make the bind-mounted
-# workspace world-writable regardless of the UID gap.
-# Refs:
-#   https://github.com/actions/runner/issues/2411
-#   https://github.com/actions/runner-images/issues/10936
-RUN userdel --remove --force ubuntu 2>/dev/null || true \
-    && groupadd --system --gid 1001 builder \
-    && useradd --uid 1001 --gid 1001 --create-home --shell /bin/bash builder \
-    && printf 'builder ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/builder \
-    && chmod 440 /etc/sudoers.d/builder
+# Reuse the base image's `ubuntu` (UID 1000). No `USER` directive so the
+# container defaults to root — lets actions/checkout write to bind-mounted
+# _work/_temp regardless of host runner UID. compile.sh re-execs under
+# `ubuntu` via gosu so ImmortalWRT's non-root-build invariant is preserved.
+RUN install -d -o ubuntu -g ubuntu /build /build/workspace /build/workspace/cache/ccache \
+    && chmod -R a+rwX /build \
+    && printf 'ubuntu ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/ubuntu \
+    && chmod 440 /etc/sudoers.d/ubuntu
 
-# Working directory with permissive write bits so any container UID mapped
-# in via --user can still operate here.
-RUN mkdir -p /build/workspace/cache/ccache \
-    && chown -R builder:builder /build \
-    && chmod -R a+rwX /build
-
-USER builder
 WORKDIR /build
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=2 \

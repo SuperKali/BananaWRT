@@ -1,23 +1,14 @@
 #!/usr/bin/env bash
 #
-# File: lib/config.sh
-# Description: Read and validate the per-version-line config (versions.json,
-#              .config files, patch directories) used by the build pipeline.
+# lib/config.sh — parse versions.json + resolve per-track paths.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
-# This is free software, licensed under the MIT License.
-#
-
-# Environment variables set by this module:
-#   BANANAWRT_VERSION_LINE       e.g. "v25.12"
-#   BANANAWRT_TRACK              e.g. "nightly"
-#   BANANAWRT_STATUS             e.g. "active" | "eol"
-#   BANANAWRT_IMMORTALWRT_VER    e.g. "25.12.0-rc2"
-#   BANANAWRT_FEED_BRANCH        e.g. "main"
-#   BANANAWRT_CONFIG_FILE        e.g. "config/v25.12/nightly/.config"
-#   BANANAWRT_VERSION_JSON       e.g. "config/v25.12/version.json"
-#   BANANAWRT_VERSION_LINE_TAG   short numeric form, e.g. "25.12"
+# Exports after validate_version_track + resolved_paths:
+#   BANANAWRT_VERSION_LINE, BANANAWRT_TRACK, BANANAWRT_STATUS,
+#   BANANAWRT_IMMORTALWRT_VER, BANANAWRT_FEED_BRANCH,
+#   BANANAWRT_CONFIG_FILE, BANANAWRT_VERSION_JSON, BANANAWRT_VERSION_LINE_TAG,
+#   BANANAWRT_{WORKSPACE,IMMORTAL_DIR,CACHE_DIR,DL_DIR,CCACHE_DIR,STAGING_DIR,FEEDS_DIR}
 
 # list_version_lines - print one version line per row (active only)
 list_version_lines() {

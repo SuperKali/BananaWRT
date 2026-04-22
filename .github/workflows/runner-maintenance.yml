@@ -1,13 +1,8 @@
 #
-# File: .github/workflows/runner-maintenance.yml
-# Description: Periodic housekeeping for self-hosted runners.
-#              Pre-pulls the BananaWRT builder image (warm cache) and prunes
-#              Docker leftovers older than a threshold so the host disk
-#              doesn't fill up between builds.
+# runner-maintenance.yml — daily self-hosted runner housekeeping:
+# pre-pull the builder image + prune Docker leftovers older than 7d.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 name: Runner Maintenance

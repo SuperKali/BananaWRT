@@ -1,14 +1,8 @@
 #
-# File: .github/workflows/immortalwrt-sdk-matrix-builder.yml
-# Description: Build the BananaWRT SDK tarballs for multiple architectures.
-#              The build is driven by compile.sh --no-package so we share every
-#              pipeline stage (clone / patch / feeds / config / download /
-#              compile) with the firmware builder; only the SDK-specific
-#              extraction and upload live in this workflow.
+# immortalwrt-sdk-matrix-builder.yml — build SDK tarballs per-arch via
+# compile.sh --no-package; workflow only owns SDK extraction + upload.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 name: BananaWRT SDK Matrix Builder
@@ -134,7 +128,8 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-      options: --user builder
+      # Container runs as root so bind-mounted host paths stay writable.
+      # compile.sh drops to `ubuntu` internally for the ImmortalWRT build.
     env:
       BANANAWRT_ARCH: ${{ matrix.arch }}
       BANANAWRT_IMMORTALWRT_VER: ${{ matrix.version }}

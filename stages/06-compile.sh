@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 #
-# File: stages/06-compile.sh
-# Description: Run the long-running ImmortalWRT cross compilation. Falls back to
-#              `make -j1 V=s` on error and reports ccache stats if available.
+# stages/06-compile.sh — cross-compile firmware; -j1 V=s fallback on failure.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 stage_compile() {
@@ -27,12 +23,8 @@ stage_compile() {
         ccache_before_miss="${ccache_before_miss:-0}"
     fi
 
-    # When CONFIG_CCACHE=y the upstream tools/Makefile has a known race:
-    # tools/liblzo (and friends) try to wrap their compiler through the
-    # not-yet-installed ccache binary, which fails. Build tools/ccache
-    # explicitly first to seed staging_dir/host/bin/ccache.
-    #   Ref: https://github.com/openwrt/openwrt/issues/15072
-    #   Ref: https://forum.openwrt.org/t/ccache-build-error-with-21-02-0-rc1-which-fix-is-likely/95238
+    # Known OpenWRT race (openwrt#15072): tools/liblzo wraps its compiler
+    # through ccache before tools/ccache is installed. Seed it first.
     if grep -q '^CONFIG_CCACHE=y' "$BANANAWRT_IMMORTAL_DIR/.config"; then
         substep "Pre-building tools/ccache (avoid liblzo race)"
         local prelog

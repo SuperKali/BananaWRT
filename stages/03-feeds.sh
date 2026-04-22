@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 #
-# File: stages/03-feeds.sh
-# Description: Inject the BananaWRT additional_pack feed into feeds.conf.default,
-#              then update/install all feeds.
+# stages/03-feeds.sh — inject additional_pack feed, then update + install.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 stage_feeds() {

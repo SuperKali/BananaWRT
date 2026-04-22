@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 #
-# File: lib/prereqs.sh
-# Description: Verify host requirements (docker, dialog, required binaries).
-#              Each check prints a remediation hint on failure.
+# lib/prereqs.sh — validate host toolchain + Docker + CI secrets.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 # check_binary <name> <install_hint>

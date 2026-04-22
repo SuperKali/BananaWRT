@@ -1,21 +1,16 @@
 #!/usr/bin/env bash
 #
-# File: stages/07-package.sh
-# Description: Collect firmware artefacts, build firmware-info.json / index
-#              updates, and (in CI mode) push to repo.superkali.me via FTP and
-#              create the GitHub Release.
+# stages/07-package.sh — collect firmware + firmware-info.json, and in CI
+#                        mode upload via FTP + create the GitHub Release.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 stage_package() {
     display_subheader "Package firmware artefacts"
 
     local target_dir
-    # `ls | head -n1` can exit 141 (SIGPIPE) when pipefail is on if ls has
-    # more entries than head consumes — trailing `|| true` neutralises it.
+    # `|| true` neutralises SIGPIPE (141) from head closing stdin under pipefail.
     target_dir="$(ls -d "$BANANAWRT_IMMORTAL_DIR"/bin/targets/*/* 2>/dev/null | head -n1 || true)"
     if [[ -z "$target_dir" || ! -d "$target_dir" ]]; then
         exit_with_error "No firmware target directory found under bin/targets/*"
@@ -44,11 +39,8 @@ stage_package() {
     done < <(find "$target_dir" -maxdepth 1 -type f -print0)
     substep_done
 
-    # Capture kernel + device info. The actual kernel source lives in
-    #   build_dir/target-<arch>/linux-<target>/linux-<X.Y.Z>/
-    # so we need to recurse into the glob expansion; -maxdepth 0 would
-    # stop at the outer `linux-<target>` directory whose name does NOT
-    # match the version regex.
+    # Kernel sources live at build_dir/target-<arch>/linux-<target>/linux-<X.Y.Z>/,
+    # so find must recurse (no -maxdepth 0) to reach the versioned subdir.
     local kernel_version target_devices
     kernel_version="$(find "$BANANAWRT_IMMORTAL_DIR/build_dir/target-"*/linux-*/ -type d -regex '.*/linux-[0-9]+\.[0-9]+.*' 2>/dev/null \
                        | head -n1 | sed -E 's|.*/linux-||' || true)"

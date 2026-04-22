@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 #
-# File: lib/banner.sh
-# Description: BananaWRT build banner (ASCII art + build context)
+# lib/banner.sh — ASCII banner + build context summary + --help.
 #
-# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
 # show_banner <version_line> <track> <immortalwrt_version> <arch> <runner_type>
