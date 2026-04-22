@@ -26,7 +26,9 @@ GITHUB_REF="${GITHUB_REF:-unknown}"
 BRANCH="${GITHUB_REF##*/}"
 RELEASE_TYPE="${BANANAWRT_RELEASE:-stable}"
 IMMORTALWRT_VERSION="${REPO_BRANCH:-unknown}"
-VERSION_LINE="v$(echo "$IMMORTALWRT_VERSION" | grep -oP '^\d+\.\d+')"
+# Prefer the explicit version line supplied by the caller (handles suffixed
+# variants such as v25.12-mtk-vendor); fall back to the vX.Y regex.
+VERSION_LINE="${BANANAWRT_VERSION_LINE:-v$(echo "$IMMORTALWRT_VERSION" | grep -oP '^\d+\.\d+')}"
 
 # Create the BananaWRT release file
 cat > package/base-files/files/etc/bananawrt_release << EOF

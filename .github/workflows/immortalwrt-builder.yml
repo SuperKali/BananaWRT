@@ -31,6 +31,11 @@ on:
         type: string
         default: ''
         description: 'Number of threads for compilation'
+      version_line:
+        required: false
+        type: string
+        default: ''
+        description: 'Explicit version line (e.g. v25.12-mtk-vendor). When empty, derived from immortalwrt_version.'
     secrets:
       PERSONAL_ACCESS_TOKEN:
         required: false
@@ -75,7 +80,11 @@ jobs:
             echo "No free self-hosted X64 runner; falling back to ubuntu-latest."
             echo 'runner="ubuntu-latest"' >> "$GITHUB_OUTPUT"
           fi
-          VERSION_LINE="v$(echo '${{ inputs.immortalwrt_version }}' | grep -oP '^\d+\.\d+')"
+          if [ -n "${{ inputs.version_line }}" ]; then
+              VERSION_LINE="${{ inputs.version_line }}"
+          else
+              VERSION_LINE="v$(echo '${{ inputs.immortalwrt_version }}' | grep -oP '^\d+\.\d+')"
+          fi
           echo "version_line=$VERSION_LINE" >> "$GITHUB_OUTPUT"
           echo "release_date=$(date +'%Y.%m.%d-%H%M')" >> "$GITHUB_OUTPUT"
 

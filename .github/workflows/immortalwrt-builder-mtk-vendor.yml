@@ -1,0 +1,63 @@
+#
+# immortalwrt-builder-mtk-vendor.yml — build BananaWRT for the MediaTek
+# proprietary-driver variant: SuperKali/immortalwrt-mt798x-rebase @
+# branch 25.12-linkup, which ships MTK vendor Wi-Fi drivers (mt_wifi) +
+# USB offload + HNAT hardware acceleration in place of the upstream mt76
+# stack.
+#
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
+#
+
+name: BananaWRT Builder (MTK Vendor)
+
+on:
+  repository_dispatch:
+  workflow_dispatch:
+    inputs:
+      architecture:
+        description: 'Runner architecture (ARM64 self-hosted or X64 GitHub-hosted)'
+        required: false
+        type: choice
+        options:
+          - ARM64
+          - X64
+        default: ARM64
+  schedule:
+    # Weekly, Tuesday 00:00 UTC (offset from nightly on Sunday)
+    - cron: '0 0 * * 2'
+
+permissions:
+  contents: write
+  packages: read
+  actions: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      version_line: ${{ steps.read.outputs.version_line }}
+      immortalwrt_version: ${{ steps.read.outputs.immortalwrt_version }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: read
+        run: |
+          VJSON='config/v25.12-mtk-vendor/version.json'
+          if [ ! -f "$VJSON" ]; then
+              echo "::error::$VJSON not found"
+              exit 1
+          fi
+          VL=$(jq -r '.version_line' "$VJSON")
+          VER=$(jq -r '.branch' "$VJSON")
+          echo "Resolved mtk-vendor: version_line=$VL, branch=$VER"
+          echo "version_line=$VL"            >> "$GITHUB_OUTPUT"
+          echo "immortalwrt_version=$VER"    >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: resolve
+    uses: ./.github/workflows/immortalwrt-builder.yml
+    with:
+      immortalwrt_version: ${{ needs.resolve.outputs.immortalwrt_version }}
+      release_type: mtk-vendor
+      version_line: ${{ needs.resolve.outputs.version_line }}
+      architecture: ${{ github.event.inputs.architecture || 'ARM64' }}
+    secrets: inherit

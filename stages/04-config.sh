@@ -72,6 +72,7 @@ stage_config() {
           GITHUB_REF="${GITHUB_REF:-refs/heads/main}" \
           REPO_BRANCH="$BANANAWRT_IMMORTALWRT_VER" \
           BANANAWRT_RELEASE="$BANANAWRT_TRACK" \
+          BANANAWRT_VERSION_LINE="$BANANAWRT_VERSION_LINE" \
           "$meta_script" >"$log" 2>&1); then
         substep_done
     else
@@ -82,22 +83,39 @@ stage_config() {
     fi
     rm -f "$log"
 
-    # 6) diffconfig merge (reuses upstream ImmortalWRT config.buildinfo as base)
-    substep "Merging diffconfig over upstream config.buildinfo"
+    # 6) diffconfig merge. Upstream ImmortalWRT publishes a
+    # config.buildinfo we can overlay our diff onto; custom forks (any
+    # version.json that sets `repo_url`) don't, so we skip the fetch and
+    # keep the shipped .config as base. `version_repo_url` in version.json
+    # overrides CONFIG_VERSION_REPO (on-device apk distfeeds.list root).
+    local CUSTOM_FORK
+    CUSTOM_FORK="$(jq -r '.repo_url // empty' "$BANANAWRT_VERSION_JSON")"
+    local BUILDINFO_BASE
+    BUILDINFO_BASE="$(jq -r '.buildinfo_base // empty' "$BANANAWRT_VERSION_JSON")"
+    [[ -z "$BUILDINFO_BASE" ]] && BUILDINFO_BASE="https://downloads.immortalwrt.org/releases/${BANANAWRT_IMMORTALWRT_VER}"
+    local VERSION_REPO
+    VERSION_REPO="$(jq -r '.version_repo_url // empty' "$BANANAWRT_VERSION_JSON")"
+    [[ -z "$VERSION_REPO" ]] && VERSION_REPO="$BUILDINFO_BASE"
+
+    if [[ -n "$CUSTOM_FORK" ]]; then
+        substep "Applying diffconfig over shipped .config (custom fork)"
+    else
+        substep "Merging diffconfig over upstream config.buildinfo"
+    fi
     log="$(mktemp -t bananawrt-diffconfig.XXXXXX)"
     if (
         cd "$BANANAWRT_IMMORTAL_DIR"
         ./scripts/diffconfig.sh > diffconfig
-        curl -sf \
-            "https://downloads.immortalwrt.org/releases/$BANANAWRT_IMMORTALWRT_VER/targets/mediatek/filogic/config.buildinfo" \
-            -o config.buildinfo || true
+        if [[ -z "$CUSTOM_FORK" ]]; then
+            curl -sf "${BUILDINFO_BASE}/targets/mediatek/filogic/config.buildinfo" \
+                 -o config.buildinfo || true
+        fi
         if [[ ! -s config.buildinfo ]]; then
-            # fall back to whatever is in .config already
             cp .config config.buildinfo
         fi
         cat diffconfig >> config.buildinfo
         mv config.buildinfo .config
-        sed -i -e "s|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO=\"https://downloads.immortalwrt.org/releases/${BANANAWRT_IMMORTALWRT_VER}\"|g" .config
+        sed -i -e "s|^CONFIG_VERSION_REPO=.*|CONFIG_VERSION_REPO=\"${VERSION_REPO}\"|g" .config
     ) >"$log" 2>&1; then
         substep_done
     else

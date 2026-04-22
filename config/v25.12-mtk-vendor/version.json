@@ -1,0 +1,29 @@
+{
+  "version_line": "v25.12-mtk-vendor",
+  "branch": "25.12-linkup",
+  "status": "active",
+  "tracks": [
+    "mtk-vendor"
+  ],
+  "feed_branch": "main",
+  "repo_url": "https://github.com/SuperKali/immortalwrt-mt798x-rebase",
+  "ref_type": "branch",
+  "ref": "25.12-linkup",
+  "version_repo_url": "https://repo.superkali.me/releases/25.12-mtk-vendor",
+  "checker_pattern": "25\\.12-mtk-vendor",
+  "packages": [
+    "atc-apn-database",
+    "atc-fib-fm350_gl",
+    "banana-utils",
+    "lpac",
+    "luci-app-3ginfo-lite",
+    "luci-app-fan",
+    "luci-app-lite-watchdog",
+    "luci-app-modemband",
+    "luci-app-sms-tool-js",
+    "luci-proto-atc",
+    "modemband",
+    "sms-tool",
+    "speedtest-ookla"
+  ]
+}
