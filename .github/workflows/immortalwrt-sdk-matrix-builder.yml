@@ -161,11 +161,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
-          git config --global user.name  'GitHub Actions'
-          git config --global user.email 'actions@github.com'
-          git config --global --add safe.directory '*'
-          printf 'machine github.com login %s\n' "${GITHUB_TOKEN:-anonymous}" > "$HOME/.netrc"
-          chmod 600 "$HOME/.netrc"
+          # --system so credentials survive the root→ubuntu re-exec in compile.sh.
+          git config --system user.name  'GitHub Actions'
+          git config --system user.email 'actions@github.com'
+          git config --system --add safe.directory '*'
+          if [ -n "${GITHUB_TOKEN:-}" ]; then
+            git config --system url."https://${GITHUB_TOKEN}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
+          fi
 
       - name: Compute cache keys
         id: cache
