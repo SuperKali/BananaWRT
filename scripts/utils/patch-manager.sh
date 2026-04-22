@@ -13,8 +13,10 @@ get_version_line() {
     echo "v${major_minor}"
 }
 
-VERSION_LINE=""
-if [ -n "$IMMORTALWRT_VERSION" ] && [ "$IMMORTALWRT_VERSION" != "-h" ] && [ "$IMMORTALWRT_VERSION" != "--help" ]; then
+# Prefer the explicit version line supplied by the caller (handles suffixed
+# variants such as v25.12-mtk-vendor); fall back to the vX.Y regex.
+VERSION_LINE="${BANANAWRT_VERSION_LINE:-}"
+if [ -z "$VERSION_LINE" ] && [ -n "$IMMORTALWRT_VERSION" ] && [ "$IMMORTALWRT_VERSION" != "-h" ] && [ "$IMMORTALWRT_VERSION" != "--help" ]; then
     VERSION_LINE=$(get_version_line "$IMMORTALWRT_VERSION")
 fi
 

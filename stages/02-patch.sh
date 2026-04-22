@@ -17,6 +17,7 @@ stage_patch() {
     local log
     log="$(mktemp -t bananawrt-patches.XXXXXX)"
     if GITHUB_WORKSPACE="$BANANAWRT_ROOT" \
+        BANANAWRT_VERSION_LINE="$BANANAWRT_VERSION_LINE" \
         "$patch_manager" \
             "$BANANAWRT_IMMORTALWRT_VER" \
             "$BANANAWRT_TRACK" \
