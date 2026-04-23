@@ -3,6 +3,35 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2026-04-23]
+
+### 🧩 Additional Packages
+
+- 🐛 fix(`banana-utils`): use real asset filenames in fota mode by @SuperKali  
+- 🐛 fix(ci): build each version once, not once per host arch by @SuperKali  
+- ♻️ refactor(ci): unify single + matrix package builders into one workflow by @SuperKali  
+- 🐛 fix(cleanup): normalise lftp cls output to basenames by @SuperKali  
+- 🐛 fix(cleanup): move stderr redirection outside lftp -c by @SuperKali  
+- 🔼 build(deps): bump samkirkland/ftp-deploy-action from 4.3.6 to 4.4.0 (#25) by @dependabot[bot]  
+- ➕ feat(ci): add releases-cleanup workflow driven by bananawrt versions.json by @SuperKali  
+- ➕ feat(ci): add releases-cleanup workflow driven by bananawrt versions.json by @SuperKali  
+- 🔄 revert(ci): drop container:, match bananawrt bare-metal workflow by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🐛 fix(mtk-vendor): drop version_code_filenames for clean image basenames by @SuperKali  
+- 🐛 fix(mtk-vendor): enable imageopt/versionopt parents for version_* keys by @SuperKali  
+- 🐛 fix(mtk-vendor): pin config_version_number to 25.12-linkup by @SuperKali  
+- 🐛 fix(mtk-vendor): enable config_version_filenames for image basenames by @SuperKali  
+- 🐛 fix(update-script): use real asset filenames in fota mode by @SuperKali  
+- 🐛 fix(mtk-vendor): disable ccache to avoid tools/ccache build race by @SuperKali  
+- 🏗️ revert "chore(ci): drop redundant /track from build job display name" by @SuperKali  
+- 🏗️ chore(ci): drop redundant /track from build job display name by @SuperKali  
+- 🐛 fix(patches): pass explicit version_line to patch-manager.sh by @SuperKali  
+- ➕ add v25.12-mtk-vendor variant (mediatek proprietary drivers) by @SuperKali  
+
+---
+
 ## [2026-04-22]
 
 ### 🧩 Additional Packages
@@ -528,4 +557,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **April 22, 2026**
+📅 Release date: **April 23, 2026**
