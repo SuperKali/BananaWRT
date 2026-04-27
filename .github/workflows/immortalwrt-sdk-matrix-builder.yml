@@ -185,7 +185,7 @@ jobs:
           echo "arch_tag=${RUNNER_ARCH_TAG}"                                      >> "$GITHUB_OUTPUT"
 
       - name: Restore dl/ cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: workspace/immortalwrt/dl
           key: ${{ steps.cache.outputs.dl }}
@@ -193,7 +193,7 @@ jobs:
             dl-${{ steps.resolve.outputs.version_line }}-
 
       - name: Restore ccache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: workspace/immortalwrt/.ccache
           key: ${{ steps.cache.outputs.ccache }}
@@ -201,7 +201,7 @@ jobs:
             ccache-${{ steps.cache.outputs.arch_tag }}-${{ steps.resolve.outputs.version_line }}-
 
       - name: Restore feeds/ cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: workspace/immortalwrt/feeds
           key: ${{ steps.cache.outputs.feeds }}
@@ -209,7 +209,7 @@ jobs:
             feeds-${{ steps.resolve.outputs.version_line }}-
 
       - name: Restore staging_dir cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: workspace/immortalwrt/staging_dir
           key: ${{ steps.cache.outputs.staging }}
