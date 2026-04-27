@@ -1,8 +1,10 @@
 {
   "version_line": "v24.10",
-  "branch": "24.10.5",
+  "branch": "24.10.6",
   "status": "active",
-  "tracks": ["stable"],
+  "tracks": [
+    "stable"
+  ],
   "feed_branch": "main",
   "checker_pattern": "v24\\.10\\.",
   "packages": [
