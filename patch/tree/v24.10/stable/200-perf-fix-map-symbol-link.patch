@@ -1,0 +1,82 @@
+Drop kernel backport patch that defines map_symbol__exit on linux 6.6.y
+
+Stable kernel 6.6.133 backported eddddf4 ("perf unwind-libdw: Fix
+invalid reference counts") which calls map_symbol__exit() in
+tools/perf/util/unwind-libdw.c without bringing in the file that
+defines the symbol. Every cross-build of package/devel/perf against
+the 6.6 tree therefore fails at link time with:
+
+    undefined reference to `map_symbol__exit'
+
+Land a kernel backport patch under target/linux/generic/backport-6.6/
+that adds tools/perf/util/map_symbol.c plus the matching declarations
+in map_symbol.h and the Build entry, mirroring upstream commit
+56e144fe9826. Will become a no-op once 6.6.134 ships the missing file.
+
+--- /dev/null
++++ b/target/linux/generic/backport-6.6/200-perf-add-map_symbol-c.patch
+@@ -0,0 +1,64 @@
++From 56e144fe9826deb4eaa4179e7c7ee4e5d4e74ed1 Mon Sep 17 00:00:00 2001
++From: Ian Rogers <irogers@google.com>
++Date: Tue, 24 Oct 2023 09:48:13 -0700
++Subject: [PATCH] perf: add map_symbol__exit and addr_map_symbol__exit
++
++Backport subset of upstream commit 56e144fe9826.
++
++Stable kernel 6.6.133 backported eddddf4 ("perf unwind-libdw: Fix
++invalid reference counts") which calls map_symbol__exit() in
++tools/perf/util/unwind-libdw.c without including the file that
++defines the symbol. perf cross-builds therefore fail with:
++
++    undefined reference to `map_symbol__exit'
++
++Restore the missing definitions and Build entry.
++
++Signed-off-by: Ian Rogers <irogers@google.com>
++---
++ tools/perf/util/Build        |  1 +
++ tools/perf/util/map_symbol.c | 15 +++++++++++++++
++ tools/perf/util/map_symbol.h |  4 ++++
++ 3 files changed, 20 insertions(+)
++ create mode 100644 tools/perf/util/map_symbol.c
++
++--- a/tools/perf/util/Build
+++++ b/tools/perf/util/Build
++@@ -48,7 +48,8 @@
++ perf-y += dso.o
++ perf-y += dsos.o
++ perf-y += symbol.o
++ perf-y += symbol_fprintf.o
+++perf-y += map_symbol.o
++ perf-y += color.o
++ perf-y += color_config.o
++ perf-y += metricgroup.o
++--- /dev/null
+++++ b/tools/perf/util/map_symbol.c
++@@ -0,0 +1,15 @@
+++// SPDX-License-Identifier: GPL-2.0
+++#include "map_symbol.h"
+++#include "maps.h"
+++#include "map.h"
+++
+++void map_symbol__exit(struct map_symbol *ms)
+++{
+++	maps__zput(ms->maps);
+++	map__zput(ms->map);
+++}
+++
+++void addr_map_symbol__exit(struct addr_map_symbol *ams)
+++{
+++	map_symbol__exit(&ams->ms);
+++}
++--- a/tools/perf/util/map_symbol.h
+++++ b/tools/perf/util/map_symbol.h
++@@ -22,4 +22,8 @@ struct addr_map_symbol {
++ 	u64	      phys_addr;
++ 	u64	      data_page_size;
++ };
+++
+++void map_symbol__exit(struct map_symbol *ms);
+++void addr_map_symbol__exit(struct addr_map_symbol *ams);
+++
++ #endif // __PERF_MAP_SYMBOL
