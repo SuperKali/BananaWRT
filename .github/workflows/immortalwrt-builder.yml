@@ -103,6 +103,11 @@ jobs:
     steps:
       - name: Clean previous workspace
         run: |
+          # Reclaim ownership before actions/checkout tries to refresh the tree
+          # — legacy Docker-era runs left root-owned objects under .git/.
+          if [ -d "$GITHUB_WORKSPACE" ]; then
+            sudo chown -R "$USER:$USER" "$GITHUB_WORKSPACE" 2>/dev/null || true
+          fi
           sudo rm -rf workspace ftp-upload 2>/dev/null || rm -rf workspace ftp-upload 2>/dev/null || true
 
       - name: Checkout repository
