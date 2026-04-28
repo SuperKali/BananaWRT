@@ -181,10 +181,11 @@ jobs:
           PATCH_HASH=$(find "patch" -type f 2>/dev/null | sort | xargs -r sha256sum | sha256sum | cut -c1-16)
           PATCH_HASH="${PATCH_HASH:-none}"
           BASE="${VL}-${TRACK}-${{ matrix.version }}"
-          # Only dl/ is truly arch-agnostic (upstream tarballs). feeds/ would be too,
-          # except in-tree host builds (e.g. luci-base po2lmo) drop *.o into the
-          # source tree itself and survive 'make clean', so isolate it per arch too.
-          echo "dl=dl-${BASE}-${VERSION_HASH}"                                       >> "$GITHUB_OUTPUT"
+          # Every cache is arch-keyed. dl/ is technically just upstream tarballs
+          # so cross-arch reuse would be safe, but isolating it removes any path
+          # for a future leak (e.g. an OpenWrt makefile that drops a generated
+          # .o under dl/) to bridge a contamination across hosts.
+          echo "dl=dl-${RUNNER_ARCH_TAG}-${BASE}-${VERSION_HASH}"                    >> "$GITHUB_OUTPUT"
           echo "feeds=feeds-${RUNNER_ARCH_TAG}-${BASE}-${VERSION_HASH}"              >> "$GITHUB_OUTPUT"
           echo "ccache=ccache-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}"             >> "$GITHUB_OUTPUT"
           echo "staging=staging-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}-${PATCH_HASH}" >> "$GITHUB_OUTPUT"
@@ -196,7 +197,7 @@ jobs:
           path: workspace/immortalwrt/dl
           key: ${{ steps.cache.outputs.dl }}
           restore-keys: |
-            dl-${{ steps.resolve.outputs.version_line }}-
+            dl-${{ steps.cache.outputs.arch_tag }}-${{ steps.resolve.outputs.version_line }}-
 
       - name: Restore ccache
         uses: actions/cache@v5
