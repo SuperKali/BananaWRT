@@ -143,12 +143,14 @@ jobs:
           PATCH_HASH=$(find "patch" -type f 2>/dev/null | sort | xargs -r sha256sum | sha256sum | cut -c1-16)
           PATCH_HASH="${PATCH_HASH:-none}"
           BASE="${BANANAWRT_VERSION_LINE}-${BANANAWRT_TRACK}-${BANANAWRT_IMMORTALWRT_VER}"
-          # dl/, feeds/ are arch-agnostic; ccache, staging_dir hold host-native binaries.
-          echo "dl=dl-${BASE}-${VERSION_HASH}"                                  >> "$GITHUB_OUTPUT"
-          echo "feeds=feeds-${BASE}-${VERSION_HASH}"                            >> "$GITHUB_OUTPUT"
-          echo "ccache=ccache-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}"        >> "$GITHUB_OUTPUT"
+          # Only dl/ is truly arch-agnostic (upstream tarballs). feeds/ would be too,
+          # except in-tree host builds (e.g. luci-base po2lmo) drop *.o into the
+          # source tree itself and survive 'make clean', so isolate it per arch too.
+          echo "dl=dl-${BASE}-${VERSION_HASH}"                                       >> "$GITHUB_OUTPUT"
+          echo "feeds=feeds-${RUNNER_ARCH_TAG}-${BASE}-${VERSION_HASH}"              >> "$GITHUB_OUTPUT"
+          echo "ccache=ccache-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}"             >> "$GITHUB_OUTPUT"
           echo "staging=staging-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}-${PATCH_HASH}" >> "$GITHUB_OUTPUT"
-          echo "arch_tag=${RUNNER_ARCH_TAG}"                                    >> "$GITHUB_OUTPUT"
+          echo "arch_tag=${RUNNER_ARCH_TAG}"                                         >> "$GITHUB_OUTPUT"
 
       - name: Restore dl/ cache
         uses: actions/cache@v5
@@ -174,7 +176,7 @@ jobs:
           path: workspace/immortalwrt/feeds
           key: ${{ steps.cache.outputs.feeds }}
           restore-keys: |
-            feeds-${{ env.BANANAWRT_VERSION_LINE }}-
+            feeds-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-
 
       - name: Restore staging_dir cache
         uses: actions/cache@v5
@@ -183,18 +185,6 @@ jobs:
           key: ${{ steps.cache.outputs.staging }}
           restore-keys: |
             staging-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
-
-      - name: Scrub stale host artefacts from feeds cache
-        run: |
-          # The feeds cache is host-arch agnostic, but a few in-tree host-compile
-          # steps (e.g. luci-base po2lmo/jsmin) drop *.o/*.a/*.so directly into
-          # feeds/. Without this, a build on ARM64 can pick up an x86_64 object
-          # left by a previous run on a different host and fail at link time
-          # with 'Relocations in generic ELF (EM: 62)'.
-          if [ -d workspace/immortalwrt/feeds ]; then
-            find workspace/immortalwrt/feeds -type f \
-              \( -name '*.o' -o -name '*.a' -o -name '*.so' \) -delete 2>/dev/null || true
-          fi
 
       - name: Run BananaWRT compile.sh
         env:
