@@ -221,6 +221,16 @@ jobs:
           restore-keys: |
             staging-${{ steps.cache.outputs.arch_tag }}-${{ steps.resolve.outputs.version_line }}-
 
+      - name: Scrub stale host artefacts from feeds cache
+        run: |
+          # See immortalwrt-builder.yml — luci-base host-compile drops *.o/*.a
+          # directly into feeds/, and the feeds cache is host-arch agnostic, so
+          # a previous build on a different host can poison the next one.
+          if [ -d workspace/immortalwrt/feeds ]; then
+            find workspace/immortalwrt/feeds -type f \
+              \( -name '*.o' -o -name '*.a' -o -name '*.so' \) -delete 2>/dev/null || true
+          fi
+
       - name: Run compile.sh (no package stage)
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}

@@ -184,6 +184,18 @@ jobs:
           restore-keys: |
             staging-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
 
+      - name: Scrub stale host artefacts from feeds cache
+        run: |
+          # The feeds cache is host-arch agnostic, but a few in-tree host-compile
+          # steps (e.g. luci-base po2lmo/jsmin) drop *.o/*.a/*.so directly into
+          # feeds/. Without this, a build on ARM64 can pick up an x86_64 object
+          # left by a previous run on a different host and fail at link time
+          # with 'Relocations in generic ELF (EM: 62)'.
+          if [ -d workspace/immortalwrt/feeds ]; then
+            find workspace/immortalwrt/feeds -type f \
+              \( -name '*.o' -o -name '*.a' -o -name '*.so' \) -delete 2>/dev/null || true
+          fi
+
       - name: Run BananaWRT compile.sh
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
