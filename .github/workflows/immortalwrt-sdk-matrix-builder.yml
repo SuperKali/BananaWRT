@@ -169,60 +169,6 @@ jobs:
             chmod 600 "$HOME/.netrc"
           fi
 
-      - name: Compute cache keys
-        id: cache
-        env:
-          VL: ${{ steps.resolve.outputs.version_line }}
-          TRACK: ${{ steps.resolve.outputs.track }}
-          RUNNER_ARCH_TAG: ${{ runner.arch }}
-        run: |
-          CONFIG_HASH=$(sha256sum "config/${VL}/${TRACK}/.config" | cut -c1-16)
-          VERSION_HASH=$(sha256sum "config/${VL}/version.json" | cut -c1-16)
-          PATCH_HASH=$(find "patch" -type f 2>/dev/null | sort | xargs -r sha256sum | sha256sum | cut -c1-16)
-          PATCH_HASH="${PATCH_HASH:-none}"
-          BASE="${VL}-${TRACK}-${{ matrix.version }}"
-          # Every cache is arch-keyed. dl/ is technically just upstream tarballs
-          # so cross-arch reuse would be safe, but isolating it removes any path
-          # for a future leak (e.g. an OpenWrt makefile that drops a generated
-          # .o under dl/) to bridge a contamination across hosts.
-          echo "dl=dl-${RUNNER_ARCH_TAG}-${BASE}-${VERSION_HASH}"                    >> "$GITHUB_OUTPUT"
-          echo "feeds=feeds-${RUNNER_ARCH_TAG}-${BASE}-${VERSION_HASH}"              >> "$GITHUB_OUTPUT"
-          echo "ccache=ccache-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}"             >> "$GITHUB_OUTPUT"
-          echo "staging=staging-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}-${PATCH_HASH}" >> "$GITHUB_OUTPUT"
-          echo "arch_tag=${RUNNER_ARCH_TAG}"                                         >> "$GITHUB_OUTPUT"
-
-      - name: Restore dl/ cache
-        uses: actions/cache@v5
-        with:
-          path: workspace/immortalwrt/dl
-          key: ${{ steps.cache.outputs.dl }}
-          restore-keys: |
-            dl-${{ steps.cache.outputs.arch_tag }}-${{ steps.resolve.outputs.version_line }}-
-
-      - name: Restore ccache
-        uses: actions/cache@v5
-        with:
-          path: workspace/immortalwrt/.ccache
-          key: ${{ steps.cache.outputs.ccache }}
-          restore-keys: |
-            ccache-${{ steps.cache.outputs.arch_tag }}-${{ steps.resolve.outputs.version_line }}-
-
-      - name: Restore feeds/ cache
-        uses: actions/cache@v5
-        with:
-          path: workspace/immortalwrt/feeds
-          key: ${{ steps.cache.outputs.feeds }}
-          restore-keys: |
-            feeds-${{ steps.cache.outputs.arch_tag }}-${{ steps.resolve.outputs.version_line }}-
-
-      - name: Restore staging_dir cache
-        uses: actions/cache@v5
-        with:
-          path: workspace/immortalwrt/staging_dir
-          key: ${{ steps.cache.outputs.staging }}
-          restore-keys: |
-            staging-${{ steps.cache.outputs.arch_tag }}-${{ steps.resolve.outputs.version_line }}-
-
       - name: Run compile.sh (no package stage)
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
@@ -277,7 +223,7 @@ jobs:
           path: sdk-artifacts
           retention-days: 1
 
-      - name: Cleanup build tree (keep caches)
+      - name: Cleanup build tree
         if: always()
         run: |
           rm -rf workspace/immortalwrt/build_dir workspace/immortalwrt/tmp 2>/dev/null || true

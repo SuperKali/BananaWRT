@@ -1,8 +1,8 @@
 #
 # immortalwrt-builder.yml — reusable BananaWRT firmware build (bare-metal).
-# Runs ./compile.sh --ci directly on the selected runner with layered
-# actions/cache restore/save and dynamic self-hosted ↔ GitHub-hosted
-# runner selection.
+# Runs ./compile.sh --ci directly on the selected runner with dynamic
+# self-hosted ↔ GitHub-hosted runner selection. No actions/cache layers:
+# host-libc drift across the runner pool produced too many false hits.
 #
 # Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
 # Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
@@ -132,60 +132,6 @@ jobs:
             printf 'machine github.com login %s\n' "$GITHUB_TOKEN" > "$HOME/.netrc"
             chmod 600 "$HOME/.netrc"
           fi
-
-      - name: Compute cache keys
-        id: cache
-        env:
-          RUNNER_ARCH_TAG: ${{ runner.arch }}
-        run: |
-          CONFIG_HASH=$(sha256sum "config/${BANANAWRT_VERSION_LINE}/${BANANAWRT_TRACK}/.config" | cut -c1-16)
-          VERSION_HASH=$(sha256sum "config/${BANANAWRT_VERSION_LINE}/version.json" | cut -c1-16)
-          PATCH_HASH=$(find "patch" -type f 2>/dev/null | sort | xargs -r sha256sum | sha256sum | cut -c1-16)
-          PATCH_HASH="${PATCH_HASH:-none}"
-          BASE="${BANANAWRT_VERSION_LINE}-${BANANAWRT_TRACK}-${BANANAWRT_IMMORTALWRT_VER}"
-          # Every cache is arch-keyed. dl/ is technically just upstream tarballs
-          # so cross-arch reuse would be safe, but isolating it removes any path
-          # for a future leak (e.g. an OpenWrt makefile that drops a generated
-          # .o under dl/) to bridge a contamination across hosts.
-          echo "dl=dl-${RUNNER_ARCH_TAG}-${BASE}-${VERSION_HASH}"                    >> "$GITHUB_OUTPUT"
-          echo "feeds=feeds-${RUNNER_ARCH_TAG}-${BASE}-${VERSION_HASH}"              >> "$GITHUB_OUTPUT"
-          echo "ccache=ccache-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}"             >> "$GITHUB_OUTPUT"
-          echo "staging=staging-${RUNNER_ARCH_TAG}-${BASE}-${CONFIG_HASH}-${PATCH_HASH}" >> "$GITHUB_OUTPUT"
-          echo "arch_tag=${RUNNER_ARCH_TAG}"                                         >> "$GITHUB_OUTPUT"
-
-      - name: Restore dl/ cache
-        uses: actions/cache@v5
-        with:
-          path: workspace/immortalwrt/dl
-          key: ${{ steps.cache.outputs.dl }}
-          restore-keys: |
-            dl-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
-            dl-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-
-
-      - name: Restore ccache
-        uses: actions/cache@v5
-        with:
-          path: workspace/immortalwrt/.ccache
-          key: ${{ steps.cache.outputs.ccache }}
-          restore-keys: |
-            ccache-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
-            ccache-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-
-
-      - name: Restore feeds/ cache
-        uses: actions/cache@v5
-        with:
-          path: workspace/immortalwrt/feeds
-          key: ${{ steps.cache.outputs.feeds }}
-          restore-keys: |
-            feeds-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-
-
-      - name: Restore staging_dir cache
-        uses: actions/cache@v5
-        with:
-          path: workspace/immortalwrt/staging_dir
-          key: ${{ steps.cache.outputs.staging }}
-          restore-keys: |
-            staging-${{ steps.cache.outputs.arch_tag }}-${{ env.BANANAWRT_VERSION_LINE }}-${{ env.BANANAWRT_TRACK }}-
 
       - name: Run BananaWRT compile.sh
         env:
