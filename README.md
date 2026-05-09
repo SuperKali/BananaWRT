@@ -80,10 +80,10 @@ Firmware and artefacts are hosted on `repo.superkali.me`, served via a standard 
 
 | Asset | URL |
 |---|---|
-| Firmware images | [repo.superkali.me/bananawrt/firmware/](https://repo.superkali.me/bananawrt/firmware/) |
-| Custom packages | [repo.superkali.me/releases/](https://repo.superkali.me/releases/) |
-| Build SDKs | [repo.superkali.me/bananawrt/sdk/](https://repo.superkali.me/bananawrt/sdk/) |
-| Signing keys | [repo.superkali.me/bananawrt/keys/](https://repo.superkali.me/bananawrt/keys/) |
+| Firmware images | [Browse firmware](https://repo.superkali.me/?dir=bananawrt/firmware) |
+| Custom packages | [Browse packages](https://repo.superkali.me/?dir=releases) |
+| Build SDKs | [Browse SDKs](https://repo.superkali.me/?dir=bananawrt/sdk) |
+| Signing keys | [Browse keys](https://repo.superkali.me/?dir=bananawrt/keys) |
 
 GitHub Releases carry the release notes; the binaries themselves live on `repo.superkali.me` to keep the GitHub archive slim.
 
@@ -91,7 +91,7 @@ GitHub Releases carry the release notes; the binaries themselves live on `repo.s
 
 ### First flash
 
-1. Pick a build that matches your board and channel under the [firmware listing](https://repo.superkali.me/bananawrt/firmware/).
+1. Pick a build that matches your board and channel under the [firmware listing](https://repo.superkali.me/?dir=bananawrt/firmware).
 2. Follow the official **Banana Pi R3 Mini** flashing procedure from the [Banana Pi wiki](https://docs.banana-pi.org/en/BPI-R3_Mini/). Pay attention to boot mode (eMMC vs SNAND) — BananaWRT artefacts follow the ImmortalWRT naming convention (`*-emmc-*`, `*-snand-*`).
 3. Connect to LuCI at `http://192.168.1.1`, configure your root password, then insert the FM350 SIM and pick a profile.
 
