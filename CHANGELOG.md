@@ -3,6 +3,33 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2026-05-14]
+
+### 🧩 Additional Packages
+
+- 🔄 ci: drop dl/feeds/ccache gh actions caches by @SuperKali  
+- 🐛 fix(`luci-app-sms`-tool-js): reassemble multi-part sms, decode utf-8, fix ui by @SuperKali  
+- ♻️ perf(atc-fib-fm350_gl): batch at setup, refactor urc parser to pure ash by @SuperKali  
+- 🛠️ feat(`modemband`): persist fm350 bands via netifd custom_at by @SuperKali  
+- 🔼 build(deps): bump actions/cache from 4 to 5 (#26) by @dependabot[bot]  
+- 🛠️ `luci-app-3ginfo`-lite: drop misleading 'no signal' label, retune signal tiers by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- ⚙️ config(v25.12-mtk-vendor): drop swconfig and its swconfig-only consumers by @SuperKali  
+- ♻️ refactor(ci): drop actions/cache layers entirely by @SuperKali  
+- ♻️ refactor(ci): arch-key the dl/ cache too for symmetry by @SuperKali  
+- ♻️ refactor(ci): arch-key feeds cache, drop scrub guard by @SuperKali  
+- 🐛 fix(ci): scrub stale host artefacts from restored feeds cache by @SuperKali  
+- 🔼 build(deps): bump actions/cache from 4 to 5 (#133) by @dependabot[bot]  
+- 🐛 fix(ci): reclaim workspace ownership before actions/checkout by @SuperKali  
+- 🐛 fix(v24.10/stable): backport perf map_symbol__exit definition by @SuperKali  
+- 🔄 update immortalwrt v24.10 to version v24.10.6 (#132) by @SuperKali  
+- 🐛 fix(setup-env): install lftp for ftp upload step by @SuperKali  
+- 🐛 fix(setup-env): install python3-setuptools for u-boot prereq by @SuperKali  
+
+---
+
 ## [2026-04-23]
 
 ### 🧩 Additional Packages
@@ -557,4 +584,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **April 23, 2026**
+📅 Release date: **May 14, 2026**
