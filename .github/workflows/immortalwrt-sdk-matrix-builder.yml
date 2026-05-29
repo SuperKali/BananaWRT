@@ -17,6 +17,7 @@ on:
         type: choice
         options:
           - stable
+          - oldstable
           - nightly
         default: stable
       architecture:
@@ -146,11 +147,14 @@ jobs:
         id: resolve
         run: |
           VL="v$(echo '${{ matrix.version }}' | grep -oP '^\d+\.\d+')"
-          if [ -f "config/${VL}/stable/.config" ]; then
-            TRACK="stable"
-          elif [ -f "config/${VL}/nightly/.config" ]; then
-            TRACK="nightly"
-          else
+          TRACK=""
+          for t in stable oldstable nightly; do
+            if [ -f "config/${VL}/${t}/.config" ]; then
+              TRACK="$t"
+              break
+            fi
+          done
+          if [ -z "$TRACK" ]; then
             echo "::error::No config found for ${VL}"
             exit 1
           fi

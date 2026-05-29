@@ -29,13 +29,22 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
       run: |
-        # Trigger SDK build for each active track that was changed
+        # Trigger an SDK build for each active track served by a mainline
+        # ImmortalWRT line. Fork-based variants (e.g. mtk-vendor) are skipped:
+        # the SDK matrix builds from upstream releases, not the rebase fork.
         for vf in config/*/version.json; do
           status=$(jq -r '.status' "$vf")
           [ "$status" != "active" ] && continue
 
           tracks=$(jq -r '.tracks[]' "$vf")
           for track in $tracks; do
+            case "$track" in
+              stable|oldstable|nightly) ;;
+              *)
+                echo "Skipping unsupported SDK track: $track"
+                continue
+                ;;
+            esac
             echo "Triggering SDK build for track: $track"
             gh workflow run immortalwrt-sdk-matrix-builder.yml \
               -f release_type="$track" \
