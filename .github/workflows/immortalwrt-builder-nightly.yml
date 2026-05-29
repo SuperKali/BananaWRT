@@ -21,8 +21,9 @@ on:
           - ARM64
           - X64
         default: ARM64
-  schedule:
-    - cron: 0 0 * * 0
+  # Nightly cron disabled: v25.12 promoted to stable and no newer upstream
+  # version line (e.g. v26.x) exists yet. Re-add the schedule block when a new
+  # nightly version line is set up via immortalwrt-promote.yml.
 
 # Reusable workflows inherit the caller's permissions as an upper bound.
 # Declare every permission the reusable (immortalwrt-builder.yml) needs so

@@ -200,7 +200,7 @@ case "${1:-}" in
         echo ""
         echo "Arguments:"
         echo "  IMMORTALWRT_VERSION  ImmortalWRT version (e.g., 24.10.5, 25.12.0)"
-        echo "  RELEASE_TYPE         Release type (stable, nightly) - default: stable"
+        echo "  RELEASE_TYPE         Release type (stable, oldstable, nightly) - default: stable"
         echo "  IMMORTALWRT_DIR      Path to ImmortalWRT directory - default: current directory"
         echo ""
         echo "Examples:"

@@ -20,7 +20,7 @@ on:
       release_type:
         required: true
         type: string
-        description: 'Release type (stable or nightly)'
+        description: 'Release type (stable, oldstable or nightly)'
       architecture:
         required: false
         type: string

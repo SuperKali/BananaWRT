@@ -10,6 +10,7 @@
 
   <p>
     <a href="https://github.com/SuperKali/BananaWRT/actions/workflows/immortalwrt-builder-stable.yml"><img alt="Stable build" src="https://img.shields.io/github/actions/workflow/status/SuperKali/BananaWRT/immortalwrt-builder-stable.yml?label=stable&logo=github&style=for-the-badge"></a>
+    <a href="https://github.com/SuperKali/BananaWRT/actions/workflows/immortalwrt-builder-oldstable.yml"><img alt="Oldstable build" src="https://img.shields.io/github/actions/workflow/status/SuperKali/BananaWRT/immortalwrt-builder-oldstable.yml?label=oldstable&logo=github&style=for-the-badge"></a>
     <a href="https://github.com/SuperKali/BananaWRT/actions/workflows/immortalwrt-builder-nightly.yml"><img alt="Nightly build" src="https://img.shields.io/github/actions/workflow/status/SuperKali/BananaWRT/immortalwrt-builder-nightly.yml?label=nightly&logo=github&style=for-the-badge"></a>
     <a href="https://github.com/SuperKali/BananaWRT/actions/workflows/immortalwrt-builder-mtk-vendor.yml"><img alt="MTK vendor build" src="https://img.shields.io/github/actions/workflow/status/SuperKali/BananaWRT/immortalwrt-builder-mtk-vendor.yml?label=mtk-vendor&logo=github&style=for-the-badge"></a>
     <a href="https://github.com/SuperKali/BananaWRT/actions/workflows/immortalwrt-checker.yml"><img alt="Version checker" src="https://img.shields.io/github/actions/workflow/status/SuperKali/BananaWRT/immortalwrt-checker.yml?label=version%20bump&logo=github&style=for-the-badge"></a>
@@ -64,12 +65,13 @@ Where upstream ImmortalWRT stops, BananaWRT layers:
 
 ## Release Channels
 
-Three officially built variants ship today. Each one is an independent version line with its own `config/`, patches and CI caller, and every build publishes to `repo.superkali.me`:
+Each channel is an independent version line with its own `config/`, patches and CI caller, and every build publishes to `repo.superkali.me`:
 
 | Channel | Upstream | Track | Cadence | Audience |
 |---|---|---|---|---|
-| **Stable** | `immortalwrt/immortalwrt` tag (currently `24.10.5`) | `stable` | Monthly | Production deployments |
-| **Nightly** | `immortalwrt/immortalwrt` tag (currently `25.12.0-rc2`) | `nightly` | Weekly | Early testing of upcoming releases |
+| **Stable** | `immortalwrt/immortalwrt` tag (currently `25.12.0`) | `stable` | Monthly | Production deployments |
+| **Oldstable** | `immortalwrt/immortalwrt` tag (currently `24.10.6`) | `oldstable` | Monthly | Existing deployments not yet migrated off the previous stable |
+| **Nightly** | `immortalwrt/immortalwrt` (next pre-release line) | `nightly` | Weekly | Early testing of upcoming releases — *paused until a newer upstream line ships* |
 | **MTK-vendor** | `SuperKali/immortalwrt-mt798x-rebase` branch `25.12-linkup` | `mtk-vendor` | Weekly | Devices that benefit from MediaTek proprietary Wi-Fi drivers + HNAT + USB offload |
 
 Channel metadata lives in `config/<version_line>/version.json`. Adding a new channel is a matter of dropping a directory and a caller workflow — the reusable pipeline adapts.

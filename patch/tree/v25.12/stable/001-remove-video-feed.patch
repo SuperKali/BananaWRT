@@ -1,6 +1,6 @@
 Remove upstream `video` feed from feeds.conf.default
 
-ImmortalWRT 25.12.0-rc2 declares the OpenWrt video feed but does not
+ImmortalWRT 25.12.0 declares the OpenWrt video feed but does not
 publish video/packages.adb on downloads.immortalwrt.org, so the entry
 baked into /etc/apk/repositories.d/distfeeds.list makes `apk update`
 fail with 404 on every device.

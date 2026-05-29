@@ -1,6 +1,7 @@
 #
 # File: .github/workflows/immortalwrt-promote.yml
-# Description: Promote nightly to stable and set up new nightly
+# Description: Promote nightly to stable, demote the previous stable to
+#              oldstable, and optionally set up a new nightly version line.
 #
 # Copyright (c) 2024-2025 SuperKali <hello@superkali.me>
 #
@@ -54,7 +55,7 @@ jobs:
         fi
 
         CURRENT_TRACKS=$(jq -r '.tracks[]' "$VERSION_JSON")
-        if ! echo "$CURRENT_TRACKS" | grep -q "nightly"; then
+        if ! echo "$CURRENT_TRACKS" | grep -qx "nightly"; then
           echo "::error::${NEW_STABLE} does not have a nightly track to promote"
           exit 1
         fi
@@ -69,12 +70,11 @@ jobs:
     - name: Detect current stable
       id: current
       run: |
-        # Find which version line is currently stable
+        # Find which version line currently holds the stable track
         CURRENT_STABLE=""
         for vf in config/*/version.json; do
           vl=$(jq -r '.version_line' "$vf")
-          tracks=$(jq -r '.tracks[]' "$vf")
-          if echo "$tracks" | grep -q "stable"; then
+          if jq -e '.tracks | index("stable")' "$vf" > /dev/null 2>&1; then
             CURRENT_STABLE="$vl"
             break
           fi
@@ -82,79 +82,139 @@ jobs:
         echo "current_stable=$CURRENT_STABLE" >> $GITHUB_OUTPUT
         echo "Current stable: ${CURRENT_STABLE:-none}"
 
+    # Move a version line's config + kernel patches from one track to another.
+    # Patches live under two roots: patch/kernel/dts/<line>/<track> and
+    # patch/tree/<line>/<track>.
     - name: Promote nightly to stable
       run: |
         NEW_STABLE="${{ inputs.new_stable_version }}"
-        NIGHTLY_CONFIG="config/${NEW_STABLE}/nightly/.config"
-        STABLE_CONFIG_DIR="config/${NEW_STABLE}/stable"
 
-        # Create stable config from nightly
-        mkdir -p "$STABLE_CONFIG_DIR"
-        cp "$NIGHTLY_CONFIG" "$STABLE_CONFIG_DIR/.config"
+        # Move the nightly config directory to stable
+        if [ -d "config/${NEW_STABLE}/nightly" ]; then
+          git mv "config/${NEW_STABLE}/nightly" "config/${NEW_STABLE}/stable"
+        fi
 
-        # Copy patches from nightly to stable
-        for patch_type in dts files; do
-          NIGHTLY_PATCH="patch/kernel/${patch_type}/${NEW_STABLE}/nightly"
-          STABLE_PATCH="patch/kernel/${patch_type}/${NEW_STABLE}/stable"
-          if [ -d "$NIGHTLY_PATCH" ]; then
-            mkdir -p "$STABLE_PATCH"
-            cp -r "$NIGHTLY_PATCH/"* "$STABLE_PATCH/"
+        # Move kernel patches (dts + tree) from nightly to stable
+        for root in patch/kernel/dts patch/tree; do
+          SRC="${root}/${NEW_STABLE}/nightly"
+          DST="${root}/${NEW_STABLE}/stable"
+          if [ -d "$SRC" ]; then
+            git mv "$SRC" "$DST"
           fi
         done
 
-        # Update version.json: add stable track
+        # Update version.json: nightly track becomes stable
         VERSION_JSON="config/${NEW_STABLE}/version.json"
-        jq '.tracks = (.tracks + ["stable"] | unique)' "$VERSION_JSON" > "$VERSION_JSON.tmp"
+        jq '(.tracks | map(if . == "nightly" then "stable" else . end) | unique) as $t | .tracks = $t' \
+          "$VERSION_JSON" > "$VERSION_JSON.tmp"
         mv "$VERSION_JSON.tmp" "$VERSION_JSON"
 
-        echo "Promoted ${NEW_STABLE}: created stable config and patches."
+        echo "Promoted ${NEW_STABLE}: nightly config/patches are now stable."
 
-    - name: Update stable caller workflow
-      run: |
-        NEW_STABLE="${{ inputs.new_stable_version }}"
-        VERSION_JSON="config/${NEW_STABLE}/version.json"
-        BRANCH=$(jq -r '.branch' "$VERSION_JSON")
-
-        sed -i "s/immortalwrt_version: '.*'/immortalwrt_version: '${BRANCH}'/" \
-          .github/workflows/immortalwrt-builder-stable.yml
-
-        echo "Updated stable caller to ${BRANCH}."
-
-    - name: EOL old stable
+    - name: Demote old stable to oldstable
       run: |
         OLD_STABLE="${{ steps.current.outputs.current_stable }}"
         NEW_STABLE="${{ inputs.new_stable_version }}"
 
-        if [ -n "$OLD_STABLE" ] && [ "$OLD_STABLE" != "$NEW_STABLE" ]; then
-          OLD_VERSION_JSON="config/${OLD_STABLE}/version.json"
-
-          if [ -f "$OLD_VERSION_JSON" ]; then
-            # Mark as EOL
-            jq '.status = "eol"' "$OLD_VERSION_JSON" > "$OLD_VERSION_JSON.tmp"
-            mv "$OLD_VERSION_JSON.tmp" "$OLD_VERSION_JSON"
-            echo "Marked ${OLD_STABLE} as EOL."
-          fi
-        else
-          echo "No old stable to EOL (or same version)."
+        if [ -z "$OLD_STABLE" ] || [ "$OLD_STABLE" = "$NEW_STABLE" ]; then
+          echo "No old stable to demote (or same version)."
+          exit 0
         fi
+
+        # Move the stable config directory to oldstable
+        if [ -d "config/${OLD_STABLE}/stable" ]; then
+          git mv "config/${OLD_STABLE}/stable" "config/${OLD_STABLE}/oldstable"
+        fi
+
+        # Move kernel patches (dts + tree) from stable to oldstable
+        for root in patch/kernel/dts patch/tree; do
+          SRC="${root}/${OLD_STABLE}/stable"
+          DST="${root}/${OLD_STABLE}/oldstable"
+          if [ -d "$SRC" ]; then
+            git mv "$SRC" "$DST"
+          fi
+        done
+
+        # Update version.json: stable track becomes oldstable, stays active
+        OLD_VERSION_JSON="config/${OLD_STABLE}/version.json"
+        jq '.tracks = (.tracks | map(if . == "stable" then "oldstable" else . end) | unique)' \
+          "$OLD_VERSION_JSON" > "$OLD_VERSION_JSON.tmp"
+        mv "$OLD_VERSION_JSON.tmp" "$OLD_VERSION_JSON"
+
+        echo "Demoted ${OLD_STABLE} to oldstable."
+
+    - name: Ensure oldstable caller exists
+      run: |
+        OLDSTABLE_CALLER=".github/workflows/immortalwrt-builder-oldstable.yml"
+        if [ -f "$OLDSTABLE_CALLER" ]; then
+          echo "Oldstable caller already present."
+          exit 0
+        fi
+        cat > "$OLDSTABLE_CALLER" <<'YAML'
+        #
+        # File: .github/workflows/immortalwrt-builder-oldstable.yml
+        # Description: Build BananaWRT firmware (Oldstable)
+        #
+        # Copyright (c) 2024-2025 SuperKali <hello@superkali.me>
+        #
+        # This is free software, licensed under the MIT License.
+        # See /LICENSE for more information.
+
+        name: BananaWRT Builder (Oldstable)
+
+        on:
+          repository_dispatch:
+          workflow_dispatch:
+          schedule:
+            - cron: 0 0 15 * *
+
+        permissions:
+          contents: write
+          packages: read
+          actions: write
+
+        jobs:
+          resolve:
+            runs-on: ubuntu-latest
+            outputs:
+              version: ${{ steps.read.outputs.version }}
+            steps:
+            - uses: actions/checkout@v6
+            - id: read
+              run: |
+                for vf in config/*/version.json; do
+                  if jq -e '.tracks | index("oldstable")' "$vf" > /dev/null 2>&1; then
+                    VERSION=$(jq -r '.branch' "$vf")
+                    echo "version=$VERSION" >> $GITHUB_OUTPUT
+                    echo "Resolved oldstable version: $VERSION from $vf"
+                    exit 0
+                  fi
+                done
+                echo "::error::No version with oldstable track found"
+                exit 1
+
+          build:
+            needs: resolve
+            uses: ./.github/workflows/immortalwrt-builder.yml
+            with:
+              immortalwrt_version: ${{ needs.resolve.outputs.version }}
+              release_type: oldstable
+            secrets: inherit
+        YAML
+        echo "Created oldstable caller."
 
     - name: Update checker matrix
       run: |
         NEW_STABLE="${{ inputs.new_stable_version }}"
         OLD_STABLE="${{ steps.current.outputs.current_stable }}"
-
-        # Update checker: old stable version_line now points to stable caller
-        # New stable uses stable caller, new nightly uses nightly caller
         CHECKER=".github/workflows/immortalwrt-checker.yml"
 
-        # Update the matrix: replace old stable entry with new stable
-        if [ -n "$OLD_STABLE" ] && [ "$OLD_STABLE" != "$NEW_STABLE" ]; then
-          # Remove old stable from matrix by replacing its version_line
-          sed -i "s/version_line: ${OLD_STABLE}/version_line: ${NEW_STABLE}/g" "$CHECKER"
-          sed -i "s/tag_prefix: ${OLD_STABLE}/tag_prefix: ${NEW_STABLE}/g" "$CHECKER"
+        # Promoted line: its checker entry now points at the stable config
+        sed -i "s|config_path: config/${NEW_STABLE}/nightly/.config|config_path: config/${NEW_STABLE}/stable/.config|g" "$CHECKER"
 
-          # Update the config path for the stable entry
-          sed -i "s|config_path: config/${OLD_STABLE}/stable/.config|config_path: config/${NEW_STABLE}/stable/.config|g" "$CHECKER"
+        # Demoted line: its checker entry now points at the oldstable config
+        if [ -n "$OLD_STABLE" ] && [ "$OLD_STABLE" != "$NEW_STABLE" ]; then
+          sed -i "s|config_path: config/${OLD_STABLE}/stable/.config|config_path: config/${OLD_STABLE}/oldstable/.config|g" "$CHECKER"
         fi
 
         echo "Updated checker matrix."
@@ -167,27 +227,25 @@ jobs:
         NEW_NIGHTLY_FEED="${{ inputs.new_nightly_feed_branch }}"
         NEW_STABLE="${{ inputs.new_stable_version }}"
 
-        # Create directory structure for new nightly
+        # Create directory structure for the new nightly line
         mkdir -p "config/${NEW_NIGHTLY}/nightly"
         mkdir -p "patch/kernel/dts/${NEW_NIGHTLY}/nightly"
-        mkdir -p "patch/kernel/files/${NEW_NIGHTLY}/nightly"
+        mkdir -p "patch/tree/${NEW_NIGHTLY}/nightly"
 
-        # Copy config from current nightly as starting point
-        cp "config/${NEW_STABLE}/nightly/.config" "config/${NEW_NIGHTLY}/nightly/.config"
-
-        # Copy patches as starting point
-        for patch_type in dts files; do
-          SRC="patch/kernel/${patch_type}/${NEW_STABLE}/nightly"
-          DST="patch/kernel/${patch_type}/${NEW_NIGHTLY}/nightly"
+        # Seed config + patches from the just-promoted stable as a starting point
+        cp "config/${NEW_STABLE}/stable/.config" "config/${NEW_NIGHTLY}/nightly/.config"
+        for root in patch/kernel/dts patch/tree; do
+          SRC="${root}/${NEW_STABLE}/stable"
+          DST="${root}/${NEW_NIGHTLY}/nightly"
           if [ -d "$SRC" ]; then
+            mkdir -p "$DST"
             cp -r "$SRC/"* "$DST/" 2>/dev/null || true
           fi
         done
 
-        # Determine packages from promoted version
+        # Inherit the package set from the promoted version
         PACKAGES=$(jq -r '.packages' "config/${NEW_STABLE}/version.json")
 
-        # Create version.json
         jq -n \
           --arg vl "$NEW_NIGHTLY" \
           --arg branch "$NEW_NIGHTLY_BRANCH" \
@@ -197,15 +255,15 @@ jobs:
           '{version_line: $vl, branch: $branch, status: "active", tracks: ["nightly"], feed_branch: $feed, checker_pattern: $pattern, packages: $packages}' \
           > "config/${NEW_NIGHTLY}/version.json"
 
-        # Update nightly caller workflow
-        sed -i "s/immortalwrt_version: '.*'/immortalwrt_version: '${NEW_NIGHTLY_BRANCH}'/" \
-          .github/workflows/immortalwrt-builder-nightly.yml
+        # Re-enable the nightly cron (it is removed when no new nightly is set)
+        NIGHTLY_CALLER=".github/workflows/immortalwrt-builder-nightly.yml"
+        if ! grep -q '^  schedule:$' "$NIGHTLY_CALLER"; then
+          sed -i "/^  workflow_dispatch:/i\\  schedule:\\n    - cron: 0 0 * * 0" "$NIGHTLY_CALLER"
+        fi
 
-        # Update checker matrix: replace old nightly entry with new nightly
+        # Append a checker matrix entry for the new nightly line
         CHECKER=".github/workflows/immortalwrt-checker.yml"
-        sed -i "s|version_line: ${NEW_STABLE}|version_line: ${NEW_NIGHTLY}|" "$CHECKER"
-        sed -i "s|tag_prefix: ${NEW_STABLE}|tag_prefix: ${NEW_NIGHTLY}|" "$CHECKER"
-        sed -i "s|config_path: config/${NEW_STABLE}/nightly/.config|config_path: config/${NEW_NIGHTLY}/nightly/.config|" "$CHECKER"
+        sed -i "/include:/a\\          - version_line: ${NEW_NIGHTLY}\\n            tag_prefix: ${NEW_NIGHTLY}\\n            config_path: config/${NEW_NIGHTLY}/nightly/.config" "$CHECKER"
 
         echo "Created new nightly ${NEW_NIGHTLY} (branch: ${NEW_NIGHTLY_BRANCH})."
 
@@ -228,8 +286,7 @@ jobs:
 
           **Changes:**
           - Promoted `${{ inputs.new_stable_version }}` nightly config/patches to stable
-          - Updated `immortalwrt-builder-stable.yml` to use `${{ inputs.new_stable_version }}`
-          - Marked `${{ steps.current.outputs.current_stable }}` as EOL
+          - Demoted `${{ steps.current.outputs.current_stable }}` from stable to oldstable
           - Updated version checker matrix
           ${{ inputs.new_nightly_version != '' && format('- Created new nightly: `{0}` (branch: `{1}`)', inputs.new_nightly_version, inputs.new_nightly_branch) || '- Nightly cron disabled (no new version)' }}
 

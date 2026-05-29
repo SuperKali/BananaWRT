@@ -1,9 +1,9 @@
 {
   "version_line": "v25.12",
-  "branch": "25.12.0-rc2",
+  "branch": "25.12.0",
   "status": "active",
   "tracks": [
-    "nightly"
+    "stable"
   ],
   "feed_branch": "main",
   "checker_pattern": "v25\\.12\\.",
