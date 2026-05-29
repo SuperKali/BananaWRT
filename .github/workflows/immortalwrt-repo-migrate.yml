@@ -137,13 +137,23 @@ jobs:
         set -euo pipefail
         [ -s plan.txt ] || { echo "Nothing to apply."; exit 0; }
 
-        CMDS="set ftp:ssl-allow no; set net:timeout 30; set net:max-retries 3; set cmd:fail-exit true; open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_HOST;"
+        CMDS="set ftp:ssl-allow no; set net:timeout 30; set net:max-retries 3; open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_HOST;"
+        # Tolerate already-migrated dirs: if the source is gone (a previous run
+        # already renamed it) the mv simply fails and is skipped — never delete
+        # the destination, which by then holds the only copy of the data.
+        CMDS="$CMDS set cmd:fail-exit false;"
         while read -r vl from to; do
           [ -n "$vl" ] || continue
-          CMDS="$CMDS rm -rf /bananawrt/firmware/$vl/$to; mv /bananawrt/firmware/$vl/$from /bananawrt/firmware/$vl/$to;"
+          CMDS="$CMDS mv /bananawrt/firmware/$vl/$from /bananawrt/firmware/$vl/$to;"
         done < plan.txt
-        # Upload the rewritten index last so it always reflects the moved dirs
-        CMDS="$CMDS put -O /bananawrt/firmware new-index.json; quit"
+        # Upload the rewritten index AS firmware-index.json (put -O keeps the
+        # local basename, so stage it then mv it into place). fail-exit on again
+        # so a botched index upload is fatal.
+        CMDS="$CMDS set cmd:fail-exit true;"
+        CMDS="$CMDS rm -f /bananawrt/firmware/firmware-index.json;"
+        CMDS="$CMDS put -O /bananawrt/firmware new-index.json;"
+        CMDS="$CMDS mv /bananawrt/firmware/new-index.json /bananawrt/firmware/firmware-index.json;"
+        CMDS="$CMDS quit"
 
         echo "Executing FTP migration..."
         lftp -c "$CMDS"
