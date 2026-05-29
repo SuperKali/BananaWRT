@@ -288,6 +288,28 @@ if [ "$ACTION" == "setup" ]; then
         error "Unknown architecture: $ARCH"
         exit 1
     fi
+
+    # xdp-tools builds its BPF objects with `clang -target bpf`, which pulls in
+    # the host's <asm/types.h> via /usr/include/linux/types.h but does NOT search
+    # the Debian multiarch dir where those headers live (/usr/include/<triplet>/asm).
+    # On x86_64 gcc-multilib provides a bare /usr/include/asm; arm64 has no such
+    # package, so the BPF compile fails with "fatal error: 'asm/types.h' file not
+    # found". Expose the arch asm headers at the bare path. Idempotent.
+    section "Ensuring /usr/include/asm for clang -target bpf"
+    if [ "$DRY_RUN" = false ]; then
+        triplet="$(gcc -dumpmachine 2>/dev/null || echo "")"
+        if [ -e /usr/include/asm ]; then
+            [ "$VERBOSE" = true ] && info "/usr/include/asm already present"
+        elif [ -n "$triplet" ] && [ -d "/usr/include/$triplet/asm" ]; then
+            sudo ln -sfn "/usr/include/$triplet/asm" /usr/include/asm && \
+                success "Linked /usr/include/asm -> /usr/include/$triplet/asm" || \
+                error "Failed to link /usr/include/asm"
+        else
+            error "Could not locate asm headers for triplet '${triplet:-unknown}'"
+        fi
+    else
+        info "[DRY RUN] Would ensure /usr/include/asm symlink"
+    fi
 elif [ "$ACTION" == "clean" ]; then
     section "Cleaning up common packages"
     show_package_stats "$COMMON_PACKAGES" "clean"
