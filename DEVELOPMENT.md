@@ -173,6 +173,7 @@ Each version line is described by a single JSON document — the source of truth
 | `immortalwrt-sdk-matrix-builder.yml` | dispatch | Publishes SDK tarballs per `(version, arch)` to `repo.superkali.me` |
 | `immortalwrt-checker.yml` | 23-hour cron | Bumps upstream ImmortalWRT tag in `version.json` + `.config` via PR |
 | `immortalwrt-promote.yml` | dispatch | Promotes nightly → stable, demotes the previous stable → oldstable, sets up the next nightly |
+| `immortalwrt-repo-migrate.yml` | dispatch | Renames firmware track dirs + `firmware-index.json` on the CDN to match `version.json` tracks (no rebuild); skips version bumps. `dry_run` defaults true |
 | `changelog-updater.yml` | dispatch | Regenerates `CHANGELOG.md` from commit history |
 
 ## Build Infrastructure

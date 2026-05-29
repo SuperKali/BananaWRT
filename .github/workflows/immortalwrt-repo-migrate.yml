@@ -1,0 +1,170 @@
+#
+# File: .github/workflows/immortalwrt-repo-migrate.yml
+# Description: Migrate firmware track nomenclature on repo.superkali.me without
+#              rebuilding. Reconciles the live firmware-index.json against the
+#              tracks declared in config/*/version.json and renames a CDN track
+#              directory + its index entry ONLY when the existing builds already
+#              carry the version the config now points at (a clean rename, not a
+#              version bump). Mismatches are reported and left for a fresh build.
+#
+# Copyright (c) 2024-2026 SuperKali <hello@superkali.me>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+
+name: Migrate Repo Track Nomenclature
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview the migration plan without touching the CDN'
+        required: true
+        type: boolean
+        default: true
+
+env:
+  TZ: Europe/Rome
+  INDEX_URL: https://repo.superkali.me/bananawrt/firmware/firmware-index.json
+  FW_BASE: https://repo.superkali.me/bananawrt/firmware
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+
+    - name: Install dependencies
+      run: sudo apt-get update -qq && sudo apt-get install -y -qq jq lftp
+
+    - name: Build migration plan
+      id: plan
+      run: |
+        set -euo pipefail
+
+        LIVE="$(curl -fsS "$INDEX_URL" || echo '{"versions":{}}')"
+        echo "$LIVE" > live-index.json
+
+        # Each plan line: "<version_line> <from_track> <to_track>"
+        : > plan.txt
+
+        for vf in config/*/version.json; do
+          vl="$(jq -r '.version_line' "$vf")"
+          [ "$(jq -r '.status' "$vf")" = "active" ] || continue
+          branch="$(jq -r '.branch' "$vf")"
+
+          mapfile -t desired < <(jq -r '.tracks[]' "$vf")
+          mapfile -t live_tracks < <(jq -r --arg vl "$vl" '.versions[$vl].tracks // {} | keys[]' live-index.json)
+          [ "${#live_tracks[@]}" -eq 0 ] && continue
+
+          for lt in "${live_tracks[@]}"; do
+            # Track already matches the config — nothing to do
+            if printf '%s\n' "${desired[@]}" | grep -qx "$lt"; then
+              continue
+            fi
+
+            # Pick the target: a desired track not yet present on the CDN
+            target=""
+            for d in "${desired[@]}"; do
+              if ! printf '%s\n' "${live_tracks[@]}" | grep -qx "$d"; then
+                target="$d"; break
+              fi
+            done
+            if [ -z "$target" ]; then
+              echo "::warning::$vl/$lt has no unambiguous rename target (desired: ${desired[*]}); skipping"
+              continue
+            fi
+            # Defensive: never rename a track onto itself
+            [ "$lt" = "$target" ] && continue
+
+            # Clean-rename guard: the track's CURRENT (latest) build must already
+            # carry the version the config now points at. Historical builds may
+            # be older point releases and are fine. If the latest is a different
+            # version (e.g. an -rc still on the track while config moved to the
+            # final tag) it is a version bump that needs a fresh build, not a
+            # rename — so the release channel never serves a pre-release.
+            cdn_ver="$(jq -r --arg vl "$vl" --arg t "$lt" '.versions[$vl].tracks[$t].immortalwrt_version' live-index.json)"
+            if [ "$cdn_ver" != "$branch" ]; then
+              echo "::notice::SKIP $vl/$lt -> $target : CDN latest is '$cdn_ver' but config branch is '$branch' — needs a fresh build, not a rename"
+              continue
+            fi
+
+            echo "PLAN: $vl  $lt -> $target  (version $branch)"
+            echo "$vl $lt $target" >> plan.txt
+          done
+        done
+
+        if [ ! -s plan.txt ]; then
+          echo "No rename actions required — repo nomenclature already matches config."
+        fi
+        echo "dry_run=${{ inputs.dry_run }}" >> "$GITHUB_OUTPUT"
+
+    - name: Rewrite firmware-index.json
+      run: |
+        set -euo pipefail
+        [ -s plan.txt ] || { echo "Nothing to rewrite."; exit 0; }
+
+        cp live-index.json new-index.json
+        while read -r vl from to; do
+          [ -n "$vl" ] || continue
+          # Move the track entry and rewrite every build URL from /<from>/ to /<to>/
+          jq --arg vl "$vl" --arg f "$from" --arg t "$to" --arg base "$FW_BASE" '
+            .versions[$vl].tracks[$t] = (
+              .versions[$vl].tracks[$f]
+              | .builds |= map(
+                  .url |= ( ( . / ($base + "/" + $vl + "/" + $f + "/") )
+                            | join($base + "/" + $vl + "/" + $t + "/") )
+                )
+            )
+            | del(.versions[$vl].tracks[$f])
+          ' new-index.json > new-index.tmp && mv new-index.tmp new-index.json
+        done < plan.txt
+
+        echo "=== New firmware-index.json ==="
+        jq '.versions | map_values(.tracks | keys)' new-index.json
+
+    - name: Apply on CDN (rename dirs + upload index)
+      if: ${{ inputs.dry_run == false }}
+      env:
+        FTP_HOST: ${{ secrets.FTP_HOST }}
+        FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+        FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      run: |
+        set -euo pipefail
+        [ -s plan.txt ] || { echo "Nothing to apply."; exit 0; }
+
+        CMDS="set ftp:ssl-allow no; set net:timeout 30; set net:max-retries 3; set cmd:fail-exit true; open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_HOST;"
+        while read -r vl from to; do
+          [ -n "$vl" ] || continue
+          CMDS="$CMDS rm -rf /bananawrt/firmware/$vl/$to; mv /bananawrt/firmware/$vl/$from /bananawrt/firmware/$vl/$to;"
+        done < plan.txt
+        # Upload the rewritten index last so it always reflects the moved dirs
+        CMDS="$CMDS put -O /bananawrt/firmware new-index.json; quit"
+
+        echo "Executing FTP migration..."
+        lftp -c "$CMDS"
+        echo "Migration applied."
+
+    - name: Summary
+      run: |
+        {
+          echo '## Repo track nomenclature migration'
+          echo
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo '> **DRY RUN** — no changes were applied. Re-run with `dry_run = false` to execute.'
+            echo
+          fi
+          echo '| Version line | From | To |'
+          echo '|---|---|---|'
+          if [ -s plan.txt ]; then
+            while read -r vl from to; do
+              [ -n "$vl" ] && echo "| \`$vl\` | \`$from\` | \`$to\` |"
+            done < plan.txt
+          else
+            echo '| _none_ | — | — |'
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
