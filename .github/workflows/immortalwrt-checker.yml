@@ -26,10 +26,10 @@ jobs:
         include:
           - version_line: v24.10
             tag_prefix: v24.10
-            config_path: config/v24.10/stable/.config
+            config_path: config/v24.10/oldstable/.config
           - version_line: v25.12
             tag_prefix: v25.12
-            config_path: config/v25.12/nightly/.config
+            config_path: config/v25.12/stable/.config
 
     steps:
     - name: Checkout the repository

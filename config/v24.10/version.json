@@ -3,7 +3,7 @@
   "branch": "24.10.6",
   "status": "active",
   "tracks": [
-    "stable"
+    "oldstable"
   ],
   "feed_branch": "main",
   "checker_pattern": "v24\\.10\\.",

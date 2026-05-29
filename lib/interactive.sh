@@ -46,9 +46,10 @@ interactive_menu() {
     for t in "${lines[@]}"; do
         local label
         case "$t" in
-            stable)  label='Stable release — monthly cadence' ;;
-            nightly) label='Nightly release — weekly cadence' ;;
-            *)       label='Custom track'                    ;;
+            stable)    label='Stable release — monthly cadence'     ;;
+            oldstable) label='Oldstable release — maintenance only' ;;
+            nightly)   label='Nightly release — weekly cadence'     ;;
+            *)         label='Custom track'                         ;;
         esac
         items+=( "$t" "$label" )
     done

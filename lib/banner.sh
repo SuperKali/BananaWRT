@@ -58,7 +58,7 @@ ${C_BOLD}USAGE${C_RESET}
 
 ${C_BOLD}REQUIRED ARGUMENTS${C_RESET}
   --version-line, -V <v24.10|v25.12>   ImmortalWRT major.minor line
-  --track, -t <stable|nightly>         Release track
+  --track, -t <stable|oldstable|nightly>   Release track
 
 ${C_BOLD}OPTIONAL ARGUMENTS${C_RESET}
   --immortalwrt-version <x.y.z>        Pin a specific ImmortalWRT version

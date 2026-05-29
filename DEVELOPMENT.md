@@ -87,11 +87,11 @@ BananaWRT/
 ├── lib/                                Shared helpers (colour output, timers, config, dialog)
 ├── stages/                             7 pipeline stages (01-clone … 07-package)
 ├── config/
-│   ├── v24.10/                         Stable version line
-│   │   ├── stable/.config
+│   ├── v24.10/                         Oldstable version line
+│   │   ├── oldstable/.config
 │   │   └── version.json
-│   ├── v25.12/                         Nightly version line
-│   │   ├── nightly/.config
+│   ├── v25.12/                         Stable version line
+│   │   ├── stable/.config
 │   │   └── version.json
 │   └── v25.12-mtk-vendor/              MTK vendor-driver variant
 │       ├── mtk-vendor/.config
@@ -166,12 +166,13 @@ Each version line is described by a single JSON document — the source of truth
 |---|---|---|
 | `immortalwrt-builder.yml` | reusable | Shared build pipeline — caches, auth, runner resolution, `compile.sh` |
 | `immortalwrt-builder-stable.yml` | monthly cron + dispatch | Calls the reusable with the stable version line |
-| `immortalwrt-builder-nightly.yml` | weekly cron + dispatch | Calls the reusable with the nightly version line |
+| `immortalwrt-builder-oldstable.yml` | monthly cron + dispatch | Calls the reusable with the oldstable version line |
+| `immortalwrt-builder-nightly.yml` | dispatch only | Calls the reusable with the nightly version line (cron paused until a newer upstream line ships) |
 | `immortalwrt-builder-mtk-vendor.yml` | weekly cron + dispatch | Calls the reusable with the MTK-vendor variant |
 | `immortalwrt-builder-selfhost.yml` | dispatch | Ad-hoc manual build against any version / arch |
 | `immortalwrt-sdk-matrix-builder.yml` | dispatch | Publishes SDK tarballs per `(version, arch)` to `repo.superkali.me` |
 | `immortalwrt-checker.yml` | 23-hour cron | Bumps upstream ImmortalWRT tag in `version.json` + `.config` via PR |
-| `immortalwrt-promote.yml` | dispatch | Promotes nightly → stable; sets up the next nightly |
+| `immortalwrt-promote.yml` | dispatch | Promotes nightly → stable, demotes the previous stable → oldstable, sets up the next nightly |
 | `changelog-updater.yml` | dispatch | Regenerates `CHANGELOG.md` from commit history |
 
 ## Build Infrastructure
