@@ -38,7 +38,7 @@ jobs:
       version_line: ${{ steps.read.outputs.version_line }}
       immortalwrt_version: ${{ steps.read.outputs.immortalwrt_version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: read
         run: |
           VJSON='config/v25.12-mtk-vendor/version.json'
