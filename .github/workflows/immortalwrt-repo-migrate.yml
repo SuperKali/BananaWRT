@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Install dependencies
       run: sudo apt-get update -qq && sudo apt-get install -y -qq jq lftp

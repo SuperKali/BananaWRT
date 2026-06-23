@@ -46,7 +46,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Resolve version and set up build matrix
         id: set-matrix
@@ -133,7 +133,7 @@ jobs:
           sudo rm -rf workspace sdk-artifacts 2>/dev/null || rm -rf workspace sdk-artifacts 2>/dev/null || true
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set Up Build Environment
         env:

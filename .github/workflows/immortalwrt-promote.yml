@@ -39,7 +39,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install -y jq
@@ -179,7 +179,7 @@ jobs:
             outputs:
               version: ${{ steps.read.outputs.version }}
             steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
             - id: read
               run: |
                 for vf in config/*/version.json; do

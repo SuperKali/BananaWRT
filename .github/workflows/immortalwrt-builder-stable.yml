@@ -26,7 +26,7 @@ jobs:
     outputs:
       version: ${{ steps.read.outputs.version }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - id: read
       run: |
         # Find the version line that has stable track
