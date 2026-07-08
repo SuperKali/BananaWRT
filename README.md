@@ -69,7 +69,7 @@ Each channel is an independent version line with its own `config/`, patches and 
 
 | Channel | Upstream | Track | Cadence | Audience |
 |---|---|---|---|---|
-| **Stable** | `immortalwrt/immortalwrt` tag (currently `25.12.0`) | `stable` | Monthly | Production deployments |
+| **Stable** | `immortalwrt/immortalwrt` tag (currently `25.12.1`) | `stable` | Monthly | Production deployments |
 | **Oldstable** | `immortalwrt/immortalwrt` tag (currently `24.10.6`) | `oldstable` | Monthly | Existing deployments not yet migrated off the previous stable |
 | **Nightly** | `immortalwrt/immortalwrt` (next pre-release line) | `nightly` | Weekly | Early testing of upcoming releases — *paused until a newer upstream line ships* |
 | **MTK-vendor** | `SuperKali/immortalwrt-mt798x-rebase` branch `25.12-linkup` | `mtk-vendor` | Weekly | Devices that benefit from MediaTek proprietary Wi-Fi drivers + HNAT + USB offload |
