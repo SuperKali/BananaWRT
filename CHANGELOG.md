@@ -3,6 +3,28 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2026-07-09]
+
+### 🧩 Additional Packages
+
+- 🔼 build(deps): bump actions/checkout from 6 to 7 (#27) by @dependabot[bot]  
+- 🐛 fix(`luci-app-sms`-tool-js): chmod +x sms_tool_utf8 wrapper at first boot by @SuperKali  
+- 🐛 fix(`luci-app-sms`-tool-js): reassemble multi-part sms, decode utf-8, fix ui by @SuperKali  
+- 🛠️ feat(`modemband`): persist fm350 bands via netifd custom_at by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🔄 bump(mtk-vendor): update mt7986 wi-fi driver/firmware by @SuperKali  
+- 🔼 build(deps): bump actions/checkout from 6 to 7 by @dependabot[bot]  
+- 🐛 fix(ci): expose /usr/include/asm on arm64 for clang -target bpf by @SuperKali  
+- 🐛 fix(repo-migrate): write firmware-index.json, tolerate moved dirs by @SuperKali  
+- ➕ feat(repo): add cdn track nomenclature migration workflow by @SuperKali  
+- 🐛 fix(sdk): support oldstable track, skip fork tracks in trigger by @SuperKali  
+- 🛠️ feat(channels): promote v25.12 to stable, v24.10 to oldstable by @SuperKali  
+- 🔄 docs: update changelog for 2026-05-14 (#137) by @SuperKali  
+
+---
+
 ## [2026-05-14]
 
 ### 🧩 Additional Packages
@@ -584,4 +606,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **May 14, 2026**
+📅 Release date: **July 09, 2026**
