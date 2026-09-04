@@ -3,6 +3,20 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2026-09-04]
+
+### 🧩 Additional Packages
+
+- 🐛 fix(quectel-cm): detect qmap mux netcard (wwanx_1) in netifd proto by @SuperKali  
+- 🐛 fix(`luci-app-3ginfo`-lite): expose 5g nr signal for quectel rm502q in nsa by @SuperKali  
+- 🐛 fix(`luci-app-3ginfo`-lite): report temperature on fibocom fm150/fm160/fm170 by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- 🔼 build(deps): bump actions/setup-python from 6 to 7 by @dependabot[bot]  
+
+---
+
 ## [2026-07-09]
 
 ### 🧩 Additional Packages
@@ -606,4 +620,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **July 09, 2026**
+📅 Release date: **September 04, 2026**
