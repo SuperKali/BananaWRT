@@ -22,19 +22,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
+    - name: Checkout (full history to diff against PR base)
       uses: actions/checkout@v7
+      with:
+        ref: ${{ github.event.pull_request.merge_commit_sha }}
+        fetch-depth: 0
 
-    - name: Detect bumped tracks and trigger SDK builds
+    - name: Trigger SDK builds only for tracks whose branch was bumped
       env:
         GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
       run: |
-        # Trigger an SDK build for each active track served by a mainline
-        # ImmortalWRT line. Fork-based variants (e.g. mtk-vendor) are skipped:
-        # the SDK matrix builds from upstream releases, not the rebase fork.
+        # Compare each version.json "branch" against the PR base: only lines
+        # actually bumped in the merged PR get an SDK build. Fork-based
+        # variants (e.g. mtk-vendor) are skipped: the SDK matrix builds from
+        # upstream releases, not the rebase fork.
         for vf in config/*/version.json; do
           status=$(jq -r '.status' "$vf")
           [ "$status" != "active" ] && continue
+
+          old_branch=$(git show "${BASE_SHA}:${vf}" 2>/dev/null | jq -r '.branch // empty')
+          new_branch=$(jq -r '.branch' "$vf")
+          if [ "$old_branch" = "$new_branch" ]; then
+            echo "No bump for ${vf} (${new_branch}) - skipping"
+            continue
+          fi
 
           tracks=$(jq -r '.tracks[]' "$vf")
           for track in $tracks; do
@@ -45,7 +57,7 @@ jobs:
                 continue
                 ;;
             esac
-            echo "Triggering SDK build for track: $track"
+            echo "Triggering SDK build for track: $track (${old_branch:-none} -> ${new_branch})"
             gh workflow run immortalwrt-sdk-matrix-builder.yml \
               -f release_type="$track" \
               -f architecture=ALL
