@@ -3,6 +3,20 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+## [2026-09-30]
+
+### 🧩 Additional Packages
+
+- 🐛 fix(atc): tell saved settings apart from the user's own at commands by @SuperKali  
+- 🐛 fix(atc): detect the at port, fix the apn database build, rework the log by @SuperKali  
+- 🐛 fix(atc-apn-database): ship the apn database instead of fetching it by @SuperKali  
+
+### 🍌 BananaWRT Core
+
+- ⚙️ config(mtk-vendor): drop modemmanager stack from firmware config by @SuperKali  
+
+---
+
 ## [2026-09-04]
 
 ### 🧩 Additional Packages
@@ -620,4 +634,4 @@ All notable changes to **BananaWRT** will be documented in this file.
 ---
 
 🛠️ Maintained with ❤️ by [BananaWRT](https://github.com/SuperKali/BananaWRT)  
-📅 Release date: **September 04, 2026**
+📅 Release date: **September 30, 2026**
