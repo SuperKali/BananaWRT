@@ -67,6 +67,7 @@ stage_config() {
     chmod +x "$meta_script" 2>/dev/null || true
     log="$(mktemp -t bananawrt-metadata.XXXXXX)"
     if (cd "$BANANAWRT_IMMORTAL_DIR" && \
+          GITHUB_WORKSPACE="$BANANAWRT_ROOT" \
           RELEASE_DATE="${BANANAWRT_RELEASE_DATE}" \
           GITHUB_SHA="${GITHUB_SHA:-unknown}" \
           GITHUB_REF="${GITHUB_REF:-refs/heads/main}" \
