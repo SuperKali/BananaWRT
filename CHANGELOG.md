@@ -3,6 +3,26 @@
 All notable changes to **BananaWRT** will be documented in this file.
 
 ---
+
+## [2026-11-22]
+
+### 🧩 Additional Packages
+
+- 3ginfo separates LTE and NR carriers, with radio readings and carrier details from `qbm-diagd`.
+- The SMS inbox keeps a local archive. Deleting a message from the modem now checks that the slot still contains that exact message.
+- Modem tools share an AT-port lock. ATC also recovers from FM350 data stalls after handover.
+- Updated `lpac` to 2.3.0 with MBIM support, and added the Quectel RG501Q-EU to `modemband`.
+- `banana-update` checks all firmware files before writing, verifies cached FOTA downloads, and keeps built-in Wi-Fi assignments when switching between vendor and standard firmware.
+
+### 🍌 BananaWRT Core
+
+- Adapted the MTK vendor LuCI Dashboard to OpenWrt 2020.
+- Fixed the stable XDP build to use target headers and skip `xdp-forward` when it is not selected.
+- Use custom feed packages when they replace stock packages with the same name, and include build metadata in local builds.
+- Verify SDK downloads and package indexes before deployment. Stop firmware publication if the existing update index cannot be fetched and validated.
+
+---
+
 ## [2026-09-30]
 
 ### 🧩 Additional Packages
