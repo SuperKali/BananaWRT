@@ -74,6 +74,8 @@ Each stage lives in [`stages/`](./stages) and can be invoked individually with `
 
 On 25.12 MTK vendor, the feeds stage reverses the previous Dashboard patch before updating LuCI on a reused workspace, then applies the current patch. It does not reset other changes in the feed. Run `bash tests/feeds-dashboard.sh` to check this lifecycle offline.
 
+Firmware publishing requires an existing, valid `firmware-index.json`. Restore the index from backup if it is missing or invalid. On a new repository, seed it with the configured version lines and empty `tracks` objects before the first publish. Run `bash tests/firmware-publish.sh` to check the failure paths offline.
+
 GitHub Actions cache layers are scoped per `version_line + track` and save the bulk of feed clones and source downloads across runs:
 
 - `dl/` — upstream tarballs (arch-agnostic)

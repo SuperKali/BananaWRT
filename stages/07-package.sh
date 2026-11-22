@@ -93,8 +93,23 @@ stage_package() {
     # Update firmware-index.json (merge with what's already on the CDN)
     substep "Merging firmware-index.json"
     local existing_index
-    existing_index="$(curl -sf 'https://repo.superkali.me/bananawrt/firmware/firmware-index.json' \
-                      || echo '{"versions":{}}')"
+    if ! existing_index="$(curl --fail --silent --show-error --connect-timeout 15 --max-time 60 --retry 2 \
+        'https://repo.superkali.me/bananawrt/firmware/firmware-index.json')"; then
+        exit_with_error "Could not fetch the existing firmware index; nothing published"
+    fi
+    if ! jq -es '
+        length == 1 and (.[0].versions |
+            type == "object" and length > 0 and
+            all(.[]; type == "object" and (.tracks |
+                type == "object" and all(.[]; type == "object" and (.builds |
+                    type == "array" and all(.[]; type == "object" and (.tag |
+                        type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*$")
+                    ))
+                ))
+            ))
+        )' <<< "$existing_index" >/dev/null; then
+        exit_with_error "Existing firmware index is empty or invalid; nothing published"
+    fi
     local new_build
     new_build="$(
         jq -nc \
