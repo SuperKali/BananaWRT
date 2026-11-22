@@ -242,13 +242,14 @@
 	pinctrl-0 = <&mmc0_pins_default>;
 	pinctrl-1 = <&mmc0_pins_uhs>;
 	bus-width = <8>;
-	max-frequency = <200000000>;
+	max-frequency = <208000000>;
 	cap-mmc-highspeed;
 	mmc-hs200-1_8v;
 	mmc-hs400-1_8v;
 	hs400-ds-delay = <0x14014>;
 	vmmc-supply = <&reg_3p3v>;
 	vqmmc-supply = <&reg_1p8v>;
+	fixed-emmc-driver-type = <1>;
 	non-removable;
 	no-sd;
 	no-sdio;
