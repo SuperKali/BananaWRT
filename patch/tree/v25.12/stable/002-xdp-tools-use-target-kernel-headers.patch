@@ -1,0 +1,9 @@
+--- a/package/network/utils/xdp-tools/Makefile
++++ b/package/network/utils/xdp-tools/Makefile
+@@ -149,5 +149,6 @@
+ 	CC="$(TARGET_CC)" \
+ 	CFLAGS="$(TARGET_CFLAGS)" \
+ 	LDFLAGS="$(TARGET_LDFLAGS)" \
++	KERNEL_HEADERS="$(TOOLCHAIN_DIR)/include" \
+ 	CLANG="$(CLANG)" \
+ 	BPFTOOL="$(STAGING_DIR_HOST)/usr/sbin/bpftool"
