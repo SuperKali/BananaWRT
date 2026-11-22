@@ -66,11 +66,13 @@ Each stage lives in [`stages/`](./stages) and can be invoked individually with `
 |---|---|---|
 | 1 — clone | [`01-clone.sh`](./stages/01-clone.sh) | Fetch ImmortalWRT source at the pinned ref (supports custom `repo_url` + branch refs) |
 | 2 — patch | [`02-patch.sh`](./stages/02-patch.sh) | Apply DTS, kernel and whole-tree patches from `patch/` |
-| 3 — feeds | [`03-feeds.sh`](./stages/03-feeds.sh) | Inject the `additional_pack` feed, then update/install |
+| 3 — feeds | [`03-feeds.sh`](./stages/03-feeds.sh) | Inject `additional_pack`, update feeds, patch the LuCI Dashboard on 25.12 MTK vendor, then install feeds |
 | 4 — config | [`04-config.sh`](./stages/04-config.sh) | Drop the channel `.config`, strip stock packages, generate metadata |
 | 5 — download | [`05-download.sh`](./stages/05-download.sh) | `make download -jN`, wipe stub archives |
 | 6 — compile | [`06-compile.sh`](./stages/06-compile.sh) | `make -jN` with `-j1 V=s` fallback on failure |
 | 7 — package | [`07-package.sh`](./stages/07-package.sh) | Pack artefacts, update `firmware-index.json`, FTP upload, create GitHub Release |
+
+On 25.12 MTK vendor, the feeds stage reverses the previous Dashboard patch before updating LuCI on a reused workspace, then applies the current patch. It does not reset other changes in the feed. Run `bash tests/feeds-dashboard.sh` to check this lifecycle offline.
 
 GitHub Actions cache layers are scoped per `version_line + track` and save the bulk of feed clones and source downloads across runs:
 
@@ -97,6 +99,7 @@ BananaWRT/
 │       ├── mtk-vendor/.config
 │       └── version.json
 ├── patch/
+│   ├── feeds/<vl>/<track>/<feed>/     Patches to checked-out feeds (applied explicitly by the feeds stage)
 │   ├── kernel/dts/<vl>/<track>/        Device-tree drop-ins
 │   ├── kernel/files/<vl>/<track>/      Kernel source patches
 │   └── tree/<vl>/<track>/*.patch       Whole-tree quilt patches

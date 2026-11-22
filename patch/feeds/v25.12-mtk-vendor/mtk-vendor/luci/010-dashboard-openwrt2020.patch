@@ -1,0 +1,236 @@
+diff --git a/modules/luci-mod-dashboard/Makefile b/modules/luci-mod-dashboard/Makefile
+index 35c9ddf..1720ac5 100644
+--- a/modules/luci-mod-dashboard/Makefile
++++ b/modules/luci-mod-dashboard/Makefile
+@@ -8,6 +8,8 @@ include $(TOPDIR)/rules.mk
+ 
+ LUCI_TITLE:=LuCI Dashboard Pages
+ LUCI_DEPENDS:=+luci-base +libiwinfo +ucode-mod-uloop
++# csstidy drops the container queries used by the OpenWrt 2020 layout.
++LUCI_MINIFY_CSS:=0
+ 
+ PKG_BUILD_DEPENDS:=iwinfo
+ PKG_LICENSE:=Apache-2.0
+diff --git a/modules/luci-mod-dashboard/htdocs/luci-static/resources/view/dashboard/css/custom.css b/modules/luci-mod-dashboard/htdocs/luci-static/resources/view/dashboard/css/custom.css
+index bf60edb..bf017f2 100644
+--- a/modules/luci-mod-dashboard/htdocs/luci-static/resources/view/dashboard/css/custom.css
++++ b/modules/luci-mod-dashboard/htdocs/luci-static/resources/view/dashboard/css/custom.css
+@@ -30,7 +30,8 @@
+ 	color: var(--dashboard-text);
+ }
+ 
+-[data-darkmode="true"] .Dashboard {
++/* OpenWrt 2020 stays light independently of the browser or root attribute. */
++[data-darkmode="true"] .Dashboard:not(.dashboard-openwrt2020) {
+ 	--dashboard-surface-alt: var(--background-color-medium, #262b34);
+ 	--dashboard-text: var(--text-color-high, #e6e8eb);
+ 	--dashboard-text-muted: var(--text-color-high, #9aa3ad);
+@@ -43,7 +44,7 @@
+ }
+ 
+ @media (prefers-color-scheme: dark) {
+-	:root:not([data-darkmode="false"]) .Dashboard {
++	:root:not([data-darkmode="false"]) .Dashboard:not(.dashboard-openwrt2020) {
+ 		--dashboard-surface-alt: var(--background-color-medium, #262b34);
+ 		--dashboard-text: var(--text-color-high, #e6e8eb);
+ 		--dashboard-text-muted: var(--text-color-high, #9aa3ad);
+diff --git a/modules/luci-mod-dashboard/htdocs/luci-static/resources/view/dashboard/css/openwrt2020.css b/modules/luci-mod-dashboard/htdocs/luci-static/resources/view/dashboard/css/openwrt2020.css
+new file mode 100644
+index 0000000..9503795
+--- /dev/null
++++ b/modules/luci-mod-dashboard/htdocs/luci-static/resources/view/dashboard/css/openwrt2020.css
+@@ -0,0 +1,150 @@
++/* Dashboard styling for OpenWrt 2020, using the theme palette. */
++.dashboard-title {
++	margin: 0 0 .65rem;
++	color: var(--main-dark-color);
++	font-size: 1.6rem;
++	line-height: 1.2;
++}
++
++.Dashboard {
++	--overview-ink: var(--secondary-bright-color);
++	--overview-bg: var(--main-dark-color);
++	--overview-muted: color-mix(in srgb, var(--overview-ink) 80%, var(--overview-bg));
++	--overview-rule: color-mix(in srgb, var(--overview-ink) 24%, var(--overview-bg));
++	--panel-border: color-mix(in srgb, var(--main-dark-color) 18%, transparent);
++	--panel-inset: 1rem;
++	--panel-radius: .5rem;
++	container: dashboard / inline-size;
++}
++
++/* One status strip: one surface, with rules between the readings. */
++.Dashboard .dashboard-kpi-row {
++	--dashboard-gap: 1px;
++	--overview-columns: 5;
++	border-radius: var(--panel-radius);
++	background: var(--overview-rule);
++	overflow: hidden;
++}
++.Dashboard .dashboard-kpi-row > .dashboard-kpi {
++	position: relative;
++	display: block;
++	/* Honour the configured row sizes while capping columns on narrow panels. */
++	flex: 1 0 calc((100% + var(--dashboard-gap)) / min(var(--dashboard-per-row, 4), var(--overview-columns)) - var(--dashboard-gap));
++	min-width: 0;
++	padding: .85rem var(--panel-inset);
++	background: var(--overview-bg);
++	color: var(--overview-ink);
++}
++.Dashboard .dashboard-kpi-icon {
++	position: absolute;
++	inset-block-start: .83rem;
++	inset-inline-end: var(--panel-inset);
++	width: 1.3rem;
++	height: 1.3rem;
++	background: transparent;
++	color: var(--main-bright-color);
++}
++.Dashboard .dashboard-kpi-icon::after {
++	inset: 0;
++}
++.Dashboard .dashboard-kpi-text > small:first-child {
++	display: block;
++	padding-inline-end: 1.65rem;
++	color: var(--overview-muted);
++	font-size: .84rem;
++}
++.Dashboard .dashboard-kpi-value {
++	margin: .15rem 0 .25rem;
++	font-size: 1.4rem;
++	font-variant-numeric: tabular-nums;
++	overflow-wrap: anywhere;
++}
++.Dashboard .dashboard-kpi-sub {
++	color: var(--overview-muted);
++	font-size: .82rem;
++}
++
++.Dashboard .dashboard-kpi-line {
++	white-space: normal;
++}
++
++/* Keep the existing chart data, series colors and renderer. */
++.Dashboard .dashboard-charts > .cbi-section,
++.Dashboard > .cbi-map {
++	border: 1px solid var(--panel-border);
++	border-radius: var(--panel-radius);
++	background: var(--secondary-bright-color);
++}
++.Dashboard .dashboard-charts > .cbi-section {
++	min-width: min(100%, 17rem);
++	padding: .8rem var(--panel-inset);
++}
++.Dashboard .dashboard-charts > .cbi-section > h3 {
++	margin: 0 0 .15rem;
++	font-size: 1.2rem;
++	color: var(--main-dark-color);
++}
++.Dashboard .dashboard-charts > .cbi-section > .cbi-section-descr {
++	margin: 0 0 1rem;
++	color: var(--dashboard-text-muted);
++	font-size: .85rem;
++}
++.Dashboard .dashboard-legend-inline {
++	padding-block-start: .55rem;
++	border-block-start: 1px solid var(--panel-border);
++}
++.Dashboard .dashboard-legend-inline b {
++	font-variant-numeric: tabular-nums;
++}
++
++/* Keep LuCI's native tab states, including its Layout form. */
++.Dashboard > .cbi-map {
++	margin: 0;
++	min-width: 0;
++}
++.Dashboard > .cbi-map > .cbi-tabmenu {
++	display: flex;
++	flex-wrap: wrap;
++	gap: 0 .65rem;
++	margin: 0;
++	padding: 0 var(--panel-inset);
++	border-block-end: 1px solid var(--panel-border);
++}
++.Dashboard > .cbi-map > .cbi-tabmenu > li {
++	height: auto;
++	max-height: none;
++}
++.Dashboard > .cbi-map > .cbi-tabmenu > li > a {
++	margin: 0;
++	padding: .65rem .15rem .55rem;
++	border-block-end: 2px solid transparent;
++}
++.Dashboard > .cbi-map > .cbi-tabmenu > .cbi-tab > a {
++	border-block-end-color: var(--main-bright-color);
++}
++.Dashboard > .cbi-map > .cbi-tabmenu > li > a:hover {
++	text-decoration: underline;
++	text-underline-offset: .2em;
++}
++.Dashboard > .cbi-map > .cbi-tabmenu > li > a:focus-visible {
++	outline: 2px solid var(--main-dark-color);
++	outline-offset: -2px;
++}
++.Dashboard > .cbi-map > .cbi-map-tabbed {
++	padding: .85rem var(--panel-inset);
++}
++.Dashboard .label.success {
++	color: var(--main-dark-color);
++}
++
++@container dashboard (width < 38rem) {
++	.Dashboard .dashboard-kpi-row,
++	.Dashboard .dashboard-charts,
++	.Dashboard > .cbi-map { --panel-inset: .75rem; }
++}
++@container dashboard (width < 50rem) {
++	.Dashboard .dashboard-kpi-row { --overview-columns: 2; }
++}
++@container dashboard (width < 18rem) {
++	.Dashboard .dashboard-kpi-row { --overview-columns: 1; }
++}
+diff --git a/modules/luci-mod-dashboard/htdocs/luci-static/resources/view/dashboard/index.js b/modules/luci-mod-dashboard/htdocs/luci-static/resources/view/dashboard/index.js
+index 6a8e755..68bcf62 100644
+--- a/modules/luci-mod-dashboard/htdocs/luci-static/resources/view/dashboard/index.js
++++ b/modules/luci-mod-dashboard/htdocs/luci-static/resources/view/dashboard/index.js
+@@ -5,11 +5,16 @@
+ 'require network';
+ 'require view.dashboard.lib.widgets as widgets';
+ 
+-document.querySelector('head').appendChild(E('link', {
+-	'rel': 'stylesheet',
+-	'type': 'text/css',
+-	'href': L.resource('view/dashboard/css/custom.css') + (L.env.resource_version ? '?v=' + L.env.resource_version : '')
+-}));
++const openwrt2020 = /(?:^|\/)openwrt2020\/?$/.test(L.env.media || '');
++const styles = openwrt2020 ? [ 'custom', 'openwrt2020' ] : [ 'custom' ];
++const version = L.env.resource_version ? '?v=' + L.env.resource_version : '';
++
++for (const style of styles)
++	document.head.appendChild(E('link', {
++		'rel': 'stylesheet',
++		'type': 'text/css',
++		'href': L.resource('view/dashboard/css/' + style + '.css') + version
++	}));
+ 
+ const ROWS = {
+ 	cards: { max: 5, shortFirst: false },
+@@ -291,13 +296,15 @@ return view.extend({
+ 	},
+ 
+ 	render([ includes, layout ]) {
+-		const root = E('div', { 'class': 'Dashboard' });
++		const root = E('div', { 'class': openwrt2020 ? 'Dashboard dashboard-openwrt2020' : 'Dashboard' });
+ 
+ 		document.addEventListener('uci-applied', () => window.location.reload());
+ 
+ 		const form = L.hasViewPermission() ? E('div', { 'class': 'cbi-section', 'data-tab': 'layout', 'data-tab-title': _('Layout') }, [ E('em', { 'class': 'spinning' }, [ _('Loading view…') ]) ]) : null;
+ 
+-		return startPolling(includes, layout, root, form).then(() => root);
++		return startPolling(includes, layout, root, form).then(() => openwrt2020
++			? [ E('h1', { 'class': 'dashboard-title' }, [ _('Dashboard') ]), root ]
++			: root);
+ 	},
+ 
+ 	handleSaveApply: null,
