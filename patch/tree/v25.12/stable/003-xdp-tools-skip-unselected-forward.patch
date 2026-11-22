@@ -1,0 +1,30 @@
+--- a/package/network/utils/xdp-tools/Makefile
++++ b/package/network/utils/xdp-tools/Makefile
+@@ -12,6 +12,7 @@
+ PKG_MAINTAINER:=Daniel Golle <daniel@makrotopia.org>
+ 
+ PKG_BUILD_DEPENDS:=bpf-headers bpftool/host
++PKG_CONFIG_DEPENDS:=CONFIG_PACKAGE_xdp-forward
+ 
+ include $(INCLUDE_DIR)/package.mk
+ include $(INCLUDE_DIR)/bpf.mk
+@@ -160,6 +161,7 @@
+ MAKE_VARS += \
+ 	PREFIX=/usr \
+ 	RUNDIR=/tmp/run \
++	BUILD_XDP_FORWARD=$(if $(filter y m,$(CONFIG_PACKAGE_xdp-forward)),1,0) \
+ 	CFLAGS="$(TARGET_CFLAGS)" \
+ 	LDFLAGS="$(TARGET_LDFLAGS)"
+ 
+--- /dev/null
++++ b/package/network/utils/xdp-tools/patches/0004-skip-unselected-xdp-forward.patch
+@@ -0,0 +1,9 @@
++--- a/Makefile
+++++ b/Makefile
++@@ -21,3 +21,6 @@
++ ifneq ($(BPFTOOL),)
++ UTILS += xdp-bench xdp-forward xdp-monitor xdp-trafficgen
+++ifeq ($(BUILD_XDP_FORWARD),0)
+++UTILS := $(filter-out xdp-forward,$(UTILS))
+++endif
++ endif
