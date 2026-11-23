@@ -17,6 +17,7 @@
     "banana-utils",
     "lpac",
     "luci-app-3ginfo-lite",
+    "luci-app-banana-update",
     "luci-app-fan",
     "luci-app-lite-watchdog",
     "luci-app-modemband",
