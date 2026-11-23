@@ -121,16 +121,43 @@ jobs:
       - name: Set timezone
         run: sudo timedatectl set-timezone "$TZ" || true
 
-      - name: Authenticate git (private upstream access)
+      - name: Configure non-interactive Git authentication
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
+          set -euo pipefail
           git config --global user.name  'GitHub Actions'
           git config --global user.email 'actions@github.com'
           git config --global --add safe.directory '*'
-          if [ -n "${GITHUB_TOKEN:-}" ]; then
-            printf 'machine github.com login %s\n' "$GITHUB_TOKEN" > "$HOME/.netrc"
-            chmod 600 "$HOME/.netrc"
+          if [ -z "${GITHUB_TOKEN:-}" ]; then
+            echo '::error::PERSONAL_ACCESS_TOKEN is required to access the additional_pack feed.'
+            exit 1
+          fi
+          ASKPASS_PATH="$(mktemp "${RUNNER_TEMP:-/tmp}/bananawrt-git-askpass.XXXXXX")"
+          cat > "$ASKPASS_PATH" <<'EOF'
+          #!/usr/bin/env sh
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *Password*) printf '%s\n' "$GITHUB_TOKEN" ;;
+            *) exit 1 ;;
+          esac
+          EOF
+          chmod 700 "$ASKPASS_PATH"
+          {
+            echo "GIT_ASKPASS=$ASKPASS_PATH"
+            echo 'GIT_TERMINAL_PROMPT=0'
+            echo 'GCM_INTERACTIVE=Never'
+          } >> "$GITHUB_ENV"
+
+      - name: Validate additional_pack access
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          : "${GIT_ASKPASS:?Git authentication helper was not configured}"
+          if ! git ls-remote --exit-code https://github.com/SuperKali/openwrt-packages.git refs/heads/main > /dev/null 2>&1; then
+            echo '::error::PERSONAL_ACCESS_TOKEN cannot read SuperKali/openwrt-packages refs/heads/main.'
+            exit 1
           fi
 
       - name: Run BananaWRT compile.sh
@@ -201,5 +228,7 @@ jobs:
       - name: Cleanup workspace
         if: always()
         run: |
-          rm -rf "$HOME/.netrc" 2>/dev/null || true
+          if [ -n "${GIT_ASKPASS:-}" ]; then
+            rm -f -- "$GIT_ASKPASS" 2>/dev/null || true
+          fi
           rm -rf workspace/immortalwrt/build_dir workspace/immortalwrt/tmp 2>/dev/null || true
