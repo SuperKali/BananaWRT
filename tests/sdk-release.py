@@ -123,6 +123,23 @@ class SdkRelease(unittest.TestCase):
         self.assertNotEqual(self.stage().returncode, 0)
         self.assertFalse((self.dest / 'sdk-master-index.json').exists())
 
+    def test_single_artifact_extracted_without_its_directory(self):
+        expected = self.fixtures()[:1]
+        nested = self.root / f'artefacts/sdk-X64-{VERSION}'
+        (nested / 'bananawrt').rename(self.root / 'artefacts/bananawrt')
+        nested.rmdir()
+        self.env['SDK_MATRIX'] = json.dumps({'include': [{'version': VERSION, 'arch': 'X64'}]})
+        result = self.stage()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), expected)
+        self.assertTrue((self.dest / 'X64' / VERSION / expected[0]['filename']).is_file())
+        # With two rows each artifact must sit in its own directory.
+        self.env['SDK_MATRIX'] = json.dumps({'include': [
+            {'version': VERSION, 'arch': arch} for arch in ('X64', 'ARM64')
+        ]})
+        self.dest = self.root / 'two-rows'
+        self.assertNotEqual(self.stage().returncode, 0)
+
     def test_cdn_gates_package_dispatch(self):
         receipt = self.fixtures()
         staged = self.stage()

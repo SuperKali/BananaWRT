@@ -31,6 +31,10 @@ def stage(artifacts, root, index_path, matrix):
             raise ValueError(f'Duplicate SDK artefact: {version}/{arch}')
         relative = Path(arch) / version
         directory = artifacts / f'sdk-{arch}-{version}' / 'bananawrt/sdk' / relative
+        if len(matrix['include']) == 1 and not directory.is_dir():
+            # download-artifact extracts a lone artifact straight into its
+            # path, without the directory named after the artifact.
+            directory = artifacts / 'bananawrt/sdk' / relative
         info = json.loads((directory / 'sdk-info.json').read_text())
         filename = info['filename']
         url = f'{BASE}/{arch}/{version}/'
