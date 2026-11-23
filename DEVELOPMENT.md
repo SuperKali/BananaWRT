@@ -200,7 +200,7 @@ SDK uploads share a queue that protects their CDN index. Firmware channels build
 | `ubuntu-24.04-arm` (fallback) | ARM64 | GitHub-hosted | — |
 | `ubuntu-latest` (fallback) | X64 | GitHub-hosted | — |
 
-The reusable builder first probes for an idle self-hosted runner that matches the requested arch; only when none is available does it spill over to GitHub-hosted. This keeps the cluster warm and avoids queueing while still tolerating outages.
+The reusable builder first probes for an idle self-hosted runner that matches the requested arch; only when none is available does it spill over to GitHub-hosted. With `AUTO`, the default, it takes an idle self-hosted runner of either arch (X64 first) and falls back to `ubuntu-24.04-arm`. This keeps the cluster warm and avoids queueing while still tolerating outages.
 
 ## Related Repositories
 

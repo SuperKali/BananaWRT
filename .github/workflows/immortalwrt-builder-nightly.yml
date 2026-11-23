@@ -14,13 +14,14 @@ on:
   workflow_dispatch:
     inputs:
       architecture:
-        description: 'Runner architecture (ARM64 self-hosted or X64 GitHub-hosted)'
+        description: 'Runner architecture (AUTO picks a free self-hosted runner, else GitHub-hosted)'
         required: false
         type: choice
         options:
+          - AUTO
           - ARM64
           - X64
-        default: ARM64
+        default: AUTO
   # Nightly cron disabled: v25.12 promoted to stable and no newer upstream
   # version line (e.g. v26.x) exists yet. Re-add the schedule block when a new
   # nightly version line is set up via immortalwrt-promote.yml.
@@ -61,5 +62,5 @@ jobs:
     with:
       immortalwrt_version: ${{ needs.resolve.outputs.version }}
       release_type: nightly
-      architecture: ${{ github.event.inputs.architecture || 'ARM64' }}
+      architecture: ${{ github.event.inputs.architecture || 'AUTO' }}
     secrets: inherit

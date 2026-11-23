@@ -15,13 +15,14 @@ on:
   workflow_dispatch:
     inputs:
       architecture:
-        description: 'Runner architecture (ARM64 self-hosted or X64 GitHub-hosted)'
+        description: 'Runner architecture (AUTO picks a free self-hosted runner, else GitHub-hosted)'
         required: false
         type: choice
         options:
+          - AUTO
           - ARM64
           - X64
-        default: ARM64
+        default: AUTO
   schedule:
     # Weekly, Tuesday 00:00 UTC (offset from nightly on Sunday)
     - cron: '0 0 * * 2'
@@ -59,5 +60,5 @@ jobs:
       immortalwrt_version: ${{ needs.resolve.outputs.immortalwrt_version }}
       release_type: mtk-vendor
       version_line: ${{ needs.resolve.outputs.version_line }}
-      architecture: ${{ github.event.inputs.architecture || 'ARM64' }}
+      architecture: ${{ github.event.inputs.architecture || 'AUTO' }}
     secrets: inherit

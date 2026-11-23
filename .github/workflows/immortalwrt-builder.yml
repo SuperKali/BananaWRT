@@ -24,8 +24,8 @@ on:
       architecture:
         required: false
         type: string
-        default: 'ARM64'
-        description: 'Runner architecture (ARM64 or X64)'
+        default: 'AUTO'
+        description: 'Runner architecture: AUTO (a free self-hosted runner of either kind, else GitHub-hosted ARM64), ARM64 or X64'
       nproc:
         required: false
         type: string
@@ -62,6 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       runner: ${{ steps.pick.outputs.runner }}
+      arch: ${{ steps.pick.outputs.arch }}
       version_line: ${{ steps.pick.outputs.version_line }}
       release_date: ${{ steps.pick.outputs.release_date }}
     steps:
@@ -71,9 +72,21 @@ jobs:
           GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           ARCH: ${{ inputs.architecture }}
         run: |
-          FREE=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100" 2>/dev/null \
-            | jq --arg arch "$ARCH" '[.runners[] | select(.status == "online") | select(.busy == false) | select([.labels[].name] | contains(["self-hosted", $arch]))] | length' \
-            || echo "0")
+          RUNNERS=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100" 2>/dev/null || echo '{"runners":[]}')
+          free() {
+            jq --arg arch "$1" '[.runners[] | select(.status == "online") | select(.busy == false) | select([.labels[].name] | contains(["self-hosted", $arch]))] | length' <<< "$RUNNERS" 2>/dev/null || echo 0
+          }
+          if [ "$ARCH" = "AUTO" ]; then
+            if [ "$(free X64)" -gt 0 ]; then ARCH=X64
+            else ARCH=ARM64
+            fi
+          fi
+          case "$ARCH" in
+            X64|ARM64) ;;
+            *) echo "::error::Unsupported runner architecture: $ARCH"; exit 1 ;;
+          esac
+          echo "arch=$ARCH" >> "$GITHUB_OUTPUT"
+          FREE=$(free "$ARCH")
           if [ "$FREE" -gt 0 ]; then
             echo "Found $FREE free self-hosted $ARCH runner(s); using self-hosted."
             echo "runner=[\"self-hosted\",\"$ARCH\"]" >> "$GITHUB_OUTPUT"
@@ -100,7 +113,7 @@ jobs:
       BANANAWRT_VERSION_LINE: ${{ needs.resolve-runner.outputs.version_line }}
       BANANAWRT_TRACK: ${{ inputs.release_type }}
       BANANAWRT_IMMORTALWRT_VER: ${{ inputs.immortalwrt_version }}
-      BANANAWRT_ARCH: ${{ inputs.architecture }}
+      BANANAWRT_ARCH: ${{ needs.resolve-runner.outputs.arch }}
       BANANAWRT_RELEASE_DATE: ${{ needs.resolve-runner.outputs.release_date }}
       BANANAWRT_JOBS: ${{ inputs.nproc }}
       BANANAWRT_FEED_COMMIT: ${{ inputs.packages_sha }}
