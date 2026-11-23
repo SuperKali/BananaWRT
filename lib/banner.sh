@@ -64,7 +64,7 @@ ${C_BOLD}OPTIONAL ARGUMENTS${C_RESET}
   --immortalwrt-version <x.y.z>        Pin a specific ImmortalWRT version
                                        (default: read from config/<vl>/version.json)
   --arch, -a <ARM64|X64>               Target runner architecture (default: ARM64)
-  --jobs, -j <N>                       Parallel make jobs (default: nproc)
+  --jobs, -j <N>                       Parallel make jobs (default: nproc, 1 per 1.25 GiB RAM)
   --ci                                 Enable CI mode (FTP upload, GitHub release)
   --no-package                         Stop after stage 6 (compile); used by SDK workflow
   --stage <name>                       Run only the named stage

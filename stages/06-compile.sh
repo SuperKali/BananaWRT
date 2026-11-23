@@ -5,10 +5,36 @@
 # Copyright (c) 2024-2026 SuperKali <hello@superkali.me> — MIT.
 #
 
+# Without --jobs, run as many make jobs as there are CPUs, but at most one
+# per 1.25 GiB of usable memory: the smallest memory.max of this process's
+# cgroups (a runner's MemoryMax) or MemAvailable. At -j32 the build went
+# over a 20 GiB runner limit and the OOM killer stopped it.
+default_compile_jobs() {
+    local cpus mem_kb dir limit jobs
+    cpus="$(nproc)"
+    mem_kb="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
+    dir="/sys/fs/cgroup$(awk -F: '$1 == "0" {print $3}' /proc/self/cgroup)"
+    while [ -n "$dir" ] && [ "$dir" != "/sys/fs/cgroup" ] && [ "$dir" != "/sys/fs" ]; do
+        limit="$(cat "$dir/memory.max" 2>/dev/null || true)"
+        case "$limit" in
+            ''|max) ;;
+            *) [ $((limit / 1024)) -lt "${mem_kb:-0}" ] && mem_kb=$((limit / 1024)) ;;
+        esac
+        dir="${dir%/*}"
+    done
+    jobs="$cpus"
+    if [ -n "$mem_kb" ] && [ "$mem_kb" -gt 0 ]; then
+        local by_mem=$((mem_kb * 4 / 5 / 1048576))
+        [ "$by_mem" -lt "$jobs" ] && jobs="$by_mem"
+    fi
+    [ "$jobs" -ge 1 ] || jobs=1
+    echo "$jobs"
+}
+
 stage_compile() {
     display_subheader "Compile firmware"
 
-    local jobs="${BANANAWRT_JOBS:-$(nproc)}"
+    local jobs="${BANANAWRT_JOBS:-$(default_compile_jobs)}"
 
     # Point ccache at our persistent directory when the package is installed.
     if command -v ccache >/dev/null 2>&1; then
