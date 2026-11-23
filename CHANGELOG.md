@@ -4,6 +4,27 @@ All notable changes to **BananaWRT** will be documented in this file.
 
 ---
 
+## [2026-11-24]
+
+### 🧩 Additional Packages
+
+- New **Updates** page in LuCI (`luci-app-banana-update`). It checks for and installs firmware from the current channel or another one, flashes a firmware file you upload, and installs package updates, keeping your settings.
+- `banana-update` can run unattended, lists available updates as JSON and picks a build by its tag.
+- Wi-Fi settings survive switching back to a Wi-Fi driver used before (standard ↔ MTK vendor firmware). Previously the networks could come back open, with the default name.
+- On 25.12, package updates read the architecture from `/etc/apk/arch`. Previously the page could say the BananaWRT feed was built for another architecture.
+- `banana-restore` no longer retries on every boot when there is no package to restore.
+- The package feed builds only its own packages and the kernel modules they need. A full CI build of 25.12.2 dropped from about two hours to under one.
+
+### 🍌 BananaWRT Core
+
+- Oldstable moves to ImmortalWrt 24.10.7 (kernel 6.6.159).
+- All three images ship the full Quectel and Fibocom USB modem stack: QMI (`qmi_wwan` with the Quectel and Fibocom drivers, `quectel-cm`, `uqmi`), MBIM (`umbim`), ECM/NCM, `usb-modeswitch` and their LuCI protocol pages. QMI is back on MTK vendor.
+- The Updates page is included in all three images.
+- The MTK vendor build produces its SDK together with the image and no longer lists feeds that upstream does not publish.
+- A version bump now builds the SDKs, packages and firmware automatically. CI uses any free local runner, and the build limits parallel jobs to the available memory.
+
+---
+
 ## [2026-11-22]
 
 ### 🧩 Additional Packages
