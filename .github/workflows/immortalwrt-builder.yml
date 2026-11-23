@@ -36,6 +36,10 @@ on:
         type: string
         default: ''
         description: 'Explicit version line (e.g. v25.12-mtk-vendor). When empty, derived from immortalwrt_version.'
+      packages_sha:
+        type: string
+        default: ''
+        description: 'Commit of additional_pack verified by the signed package deployment'
     secrets:
       PERSONAL_ACCESS_TOKEN:
         required: false
@@ -99,6 +103,7 @@ jobs:
       BANANAWRT_ARCH: ${{ inputs.architecture }}
       BANANAWRT_RELEASE_DATE: ${{ needs.resolve-runner.outputs.release_date }}
       BANANAWRT_JOBS: ${{ inputs.nproc }}
+      BANANAWRT_FEED_COMMIT: ${{ inputs.packages_sha }}
       BANANAWRT_CI: '1'
     steps:
       - name: Clean previous workspace

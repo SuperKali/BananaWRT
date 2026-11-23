@@ -9,6 +9,22 @@ name: BananaWRT SDK Matrix Builder
 
 on:
   repository_dispatch:
+  workflow_call:
+    inputs:
+      versions:
+        description: 'Exact upstream versions to build, comma-separated'
+        required: true
+        type: string
+      architecture:
+        type: string
+        default: ALL
+      nproc:
+        type: string
+        default: ''
+    outputs:
+      receipt:
+        description: 'SDK versions, architectures, filenames and checksums published by this run'
+        value: ${{ jobs.upload-to-ftp.outputs.receipt }}
   workflow_dispatch:
     inputs:
       release_type:
@@ -19,9 +35,10 @@ on:
           - stable
           - oldstable
           - nightly
+          - mtk-vendor
         default: stable
       architecture:
-        description: 'Select architecture to build for'
+        description: 'Select architecture to build for (use X64 for mtk-vendor)'
         required: true
         type: choice
         options:
@@ -52,32 +69,24 @@ jobs:
         id: set-matrix
         env:
           GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          VERSIONS: ${{ inputs.versions }}
+          TRACK: ${{ inputs.release_type }}
+          ARCH: ${{ inputs.architecture }}
         run: |
-          TRACK="${{ github.event.inputs.release_type }}"
-
-          # Find the version line that has the selected track
-          VERSION=""
-          for vf in config/*/version.json; do
-            if jq -e --arg t "$TRACK" '.tracks | index($t)' "$vf" > /dev/null 2>&1; then
-              VERSION=$(jq -r '.branch' "$vf")
-              echo "Resolved $TRACK version: $VERSION from $vf"
-              break
-            fi
-          done
-          if [ -z "$VERSION" ]; then
-            echo "::error::No version found with track '$TRACK'"
-            exit 1
-          fi
-          VERSIONS=$(echo "$VERSION" | jq -R . | jq -s .)
-
-          if [ "${{ github.event.inputs.architecture }}" = "ALL" ]; then
-            ARCHS='["X64", "ARM64"]'
+          if [ -n "$VERSIONS" ]; then
+            PLAN=$(python3 -I scripts/builder/sdk-plan.py --versions "$VERSIONS")
           else
-            ARCHS='["${{ github.event.inputs.architecture }}"]'
+            PLAN=$(python3 -I scripts/builder/sdk-plan.py --track "$TRACK")
           fi
+
+          case "$ARCH" in
+            ALL) ARCHS=(X64 ARM64) ;;
+            X64|ARM64) ARCHS=("$ARCH") ;;
+            *) echo "::error::Unsupported SDK architecture: $ARCH"; exit 1 ;;
+          esac
 
           # Count free self-hosted runners per arch (online + idle)
-          RUNNERS_JSON=$(gh api "/repos/${{ github.repository }}/actions/runners?per_page=100" 2>/dev/null || echo '{"runners":[]}')
+          RUNNERS_JSON=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runners?per_page=100" 2>/dev/null || echo '{"runners":[]}')
           ARM64_FREE=$(echo "$RUNNERS_JSON" | jq '[.runners[] | select(.status == "online") | select(.busy == false) | select([.labels[].name] | contains(["self-hosted", "ARM64"]))] | length')
           X64_FREE=$(echo "$RUNNERS_JSON"   | jq '[.runners[] | select(.status == "online") | select(.busy == false) | select([.labels[].name] | contains(["self-hosted", "X64"]))]   | length')
           echo "Free self-hosted runners — ARM64: $ARM64_FREE, X64: $X64_FREE"
@@ -86,8 +95,9 @@ jobs:
           ARM64_USED=0
           X64_USED=0
           INCLUDES='[]'
-          for V in $(echo "$VERSIONS" | jq -r '.[]'); do
-            for A in $(echo "$ARCHS" | jq -r '.[]'); do
+          ROWS=$(jq -er '.[] | [.version, .version_line, .track] | @tsv' <<< "$PLAN")
+          while IFS=$'\t' read -r V VL T; do
+            for A in "${ARCHS[@]}"; do
               if [ "$A" = "ARM64" ]; then
                 if [ "$ARM64_USED" -lt "$ARM64_FREE" ]; then
                   RUNNER='["self-hosted","ARM64"]'
@@ -103,9 +113,11 @@ jobs:
                   RUNNER='"ubuntu-latest"'
                 fi
               fi
-              INCLUDES=$(echo "$INCLUDES" | jq --arg v "$V" --arg a "$A" --argjson r "$RUNNER" '. + [{version: $v, arch: $a, runner: $r}]')
+              INCLUDES=$(jq -c --arg v "$V" --arg a "$A" --argjson r "$RUNNER" \
+                  --arg vl "$VL" --arg track "$T" \
+                  '. + [{version: $v, arch: $a, runner: $r, version_line: $vl, track: $track}]' <<< "$INCLUDES")
             done
-          done
+          done <<< "$ROWS"
 
           MATRIX=$(jq -nc --argjson inc "$INCLUDES" '{include: $inc}')
           echo "Generated matrix: $MATRIX"
@@ -121,6 +133,8 @@ jobs:
     env:
       BANANAWRT_ARCH: ${{ matrix.arch }}
       BANANAWRT_IMMORTALWRT_VER: ${{ matrix.version }}
+      BANANAWRT_VERSION_LINE: ${{ matrix.version_line }}
+      BANANAWRT_TRACK: ${{ matrix.track }}
       BANANAWRT_JOBS: ${{ inputs.nproc }}
     steps:
       - name: Clean previous workspace
@@ -143,24 +157,6 @@ jobs:
       - name: Set timezone
         run: sudo timedatectl set-timezone "$TZ" || true
 
-      - name: Resolve version line + track
-        id: resolve
-        run: |
-          VL="v$(echo '${{ matrix.version }}' | grep -oP '^\d+\.\d+')"
-          TRACK=""
-          for t in stable oldstable nightly; do
-            if [ -f "config/${VL}/${t}/.config" ]; then
-              TRACK="$t"
-              break
-            fi
-          done
-          if [ -z "$TRACK" ]; then
-            echo "::error::No config found for ${VL}"
-            exit 1
-          fi
-          echo "version_line=$VL"   >> "$GITHUB_OUTPUT"
-          echo "track=$TRACK"       >> "$GITHUB_OUTPUT"
-
       - name: Authenticate git (upstream ImmortalWRT access)
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
@@ -178,22 +174,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
           ./compile.sh --no-package \
-            --version-line "${{ steps.resolve.outputs.version_line }}" \
-            --track "${{ steps.resolve.outputs.track }}" \
+            --version-line "${BANANAWRT_VERSION_LINE}" \
+            --track "${BANANAWRT_TRACK}" \
             --arch "${BANANAWRT_ARCH}" \
             --immortalwrt-version "${BANANAWRT_IMMORTALWRT_VER}" \
             ${BANANAWRT_JOBS:+--jobs "${BANANAWRT_JOBS}"}
 
       - name: Extract SDK artefact + metadata
-        env:
-          VL: ${{ steps.resolve.outputs.version_line }}
         run: |
           TREE="workspace/immortalwrt"
           SDK_PATH=$(find "$TREE/bin/targets" -name "*sdk*" -type f | grep -v sha256sum | head -n 1)
           CONFIG_PATH=$(find "$TREE/bin/targets" -name "config.buildinfo" | head -n 1)
 
-          if [ -z "$SDK_PATH" ]; then
-            echo "::error::SDK tarball not found under $TREE/bin/targets"
+          if [ -z "$SDK_PATH" ] || [ ! -s "$CONFIG_PATH" ]; then
+            echo "::error::SDK tarball or config.buildinfo not found under $TREE/bin/targets"
             exit 1
           fi
 
@@ -204,8 +198,7 @@ jobs:
 
           OUT="sdk-artifacts/bananawrt/sdk/${BANANAWRT_ARCH}/${BANANAWRT_IMMORTALWRT_VER}"
           mkdir -p "$OUT"
-          cp "$SDK_PATH" "$OUT/"
-          [ -n "$CONFIG_PATH" ] && cp "$CONFIG_PATH" "$OUT/" || true
+          cp "$SDK_PATH" "$CONFIG_PATH" "$OUT/"
 
           cat > "$OUT/sdk-info.json" <<EOF
           {
@@ -237,51 +230,35 @@ jobs:
     name: Publish SDKs to repo.superkali.me
     needs: [prepare, build-sdk]
     runs-on: ubuntu-latest
+    concurrency:
+      group: sdk-cdn-publish
+      queue: max
+    outputs:
+      receipt: ${{ steps.stage.outputs.receipt }}
     steps:
+      - uses: actions/checkout@v7
+
       - name: Install lftp
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp jq rsync
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
 
       - name: Download all SDK artefacts
         uses: actions/download-artifact@v8
         with:
           path: all-artifacts
 
-      - name: Assemble upload tree + master index
+      - name: Stage SDKs and merge the public master index
+        id: stage
+        env:
+          SDK_MATRIX: ${{ needs.prepare.outputs.matrix }}
         run: |
-          mkdir -p ftp-upload/bananawrt/sdk
-
-          # Seed with the existing master index, if any
-          curl -fsS -o ftp-upload/bananawrt/sdk/sdk-master-index.json \
-              'https://repo.superkali.me/bananawrt/sdk/sdk-master-index.json' \
-              || echo '{"versions":{}}' > ftp-upload/bananawrt/sdk/sdk-master-index.json
-
-          # Copy artefacts into the staging tree (supports both flat and per-artefact layouts)
-          for d in all-artifacts/sdk-*/; do
-            [ -d "$d/bananawrt/sdk" ] || continue
-            rsync -av "$d/bananawrt/sdk/" ftp-upload/bananawrt/sdk/
-          done
-          [ -d all-artifacts/bananawrt/sdk ] && rsync -av all-artifacts/bananawrt/sdk/ ftp-upload/bananawrt/sdk/
-
-          MATRIX='${{ needs.prepare.outputs.matrix }}'
-          VERSIONS=$(echo "$MATRIX" | jq -r '.include[].version' | sort -u)
-          ARCHS=$(echo "$MATRIX"   | jq -r '.include[].arch'    | sort -u)
-          INDEX='ftp-upload/bananawrt/sdk/sdk-master-index.json'
-          BASE='https://repo.superkali.me/bananawrt/sdk'
-
-          for VERSION in $VERSIONS; do
-            jq --arg v "$VERSION" '.versions[$v] //= {architectures:{}}' "$INDEX" > "$INDEX.tmp" && mv "$INDEX.tmp" "$INDEX"
-            for ARCH in $ARCHS; do
-              jq --arg v "$VERSION" --arg a "$ARCH" --arg base "$BASE" \
-                 '.versions[$v].architectures[$a] = {
-                    sdk_url: ($base + "/" + $a + "/" + $v + "/"),
-                    config_url: ($base + "/" + $a + "/" + $v + "/config.buildinfo"),
-                    info_url: ($base + "/" + $a + "/" + $v + "/sdk-info.json")
-                  }' "$INDEX" > "$INDEX.tmp" && mv "$INDEX.tmp" "$INDEX"
-            done
-          done
-
-          echo "Upload tree:"
-          find ftp-upload -type f -exec ls -lh {} \;
+          current=$(mktemp)
+          trap 'rm -f "$current"' EXIT
+          curl --proto '=https' --fail --silent --show-error --retry 2 \
+              --header 'Cache-Control: no-cache' --max-time 30 -o "$current" \
+              'https://repo.superkali.me/bananawrt/sdk/sdk-master-index.json'
+          receipt=$(python3 -I scripts/builder/stage-sdk-release.py \
+              all-artifacts ftp-upload/bananawrt/sdk "$current")
+          echo "receipt=$receipt" >> "$GITHUB_OUTPUT"
 
       - name: Upload to FTP
         run: |
@@ -291,8 +268,9 @@ jobs:
             set net:max-retries 3;
             set cmd:fail-exit true;
             open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} ${{ secrets.FTP_HOST }};
-            mirror --reverse --verbose --only-newer --parallel=2 \
+            mirror --reverse --verbose --only-newer --parallel=2 --exclude-glob sdk-master-index.json \
                 ftp-upload/bananawrt/sdk /bananawrt/sdk;
+            put ftp-upload/bananawrt/sdk/sdk-master-index.json -o /bananawrt/sdk/sdk-master-index.json;
             quit
           "
 

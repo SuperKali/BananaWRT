@@ -1,65 +1,90 @@
-#
-# File: .github/workflows/immortalwrt-sdk-trigger.yml
-# Description: Trigger SDK build when a version bump PR is merged
-#
-# Copyright (c) 2024-2025 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
-
-name: Trigger SDK Build on Version Bump
+# Build SDKs, packages and firmware when main adopts a new ImmortalWrt version.
+name: Publish SDKs, Packages and Firmware on Version Bump
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches: [main]
     paths:
       - 'config/*/version.json'
 
+permissions:
+  contents: read
+
 jobs:
-  trigger-sdk:
-    if: github.event.pull_request.merged == true
+  versions:
     runs-on: ubuntu-latest
-
+    outputs:
+      versions: ${{ steps.plan.outputs.versions }}
+      firmware: ${{ steps.plan.outputs.firmware }}
     steps:
-    - name: Checkout (full history to diff against PR base)
-      uses: actions/checkout@v7
-      with:
-        ref: ${{ github.event.pull_request.merge_commit_sha }}
-        fetch-depth: 0
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
-    - name: Trigger SDK builds only for tracks whose branch was bumped
-      env:
-        GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        BASE_SHA: ${{ github.event.pull_request.base.sha }}
-      run: |
-        # Compare each version.json "branch" against the PR base: only lines
-        # actually bumped in the merged PR get an SDK build. Fork-based
-        # variants (e.g. mtk-vendor) are skipped: the SDK matrix builds from
-        # upstream releases, not the rebase fork.
-        for vf in config/*/version.json; do
-          status=$(jq -r '.status' "$vf")
-          [ "$status" != "active" ] && continue
+      - name: Find active upstream versions that changed
+        id: plan
+        env:
+          BASE_SHA: ${{ github.event.before }}
+        run: |
+          plan=$(python3 -I scripts/builder/sdk-plan.py --before "$BASE_SHA")
+          versions=$(jq -r 'map(.version) | join(",")' <<< "$plan")
+          firmware=$(jq -cn --argjson plan "$plan" '{include:$plan}')
+          echo "versions=$versions" >> "$GITHUB_OUTPUT"
+          echo "firmware=$firmware" >> "$GITHUB_OUTPUT"
+          echo "Versions to build: ${versions:-none}"
 
-          old_branch=$(git show "${BASE_SHA}:${vf}" 2>/dev/null | jq -r '.branch // empty')
-          new_branch=$(jq -r '.branch' "$vf")
-          if [ "$old_branch" = "$new_branch" ]; then
-            echo "No bump for ${vf} (${new_branch}) - skipping"
-            continue
-          fi
+  sdk:
+    needs: versions
+    if: needs.versions.outputs.versions != ''
+    uses: ./.github/workflows/immortalwrt-sdk-matrix-builder.yml
+    with:
+      versions: ${{ needs.versions.outputs.versions }}
+      architecture: ALL
+    secrets: inherit
 
-          tracks=$(jq -r '.tracks[]' "$vf")
-          for track in $tracks; do
-            case "$track" in
-              stable|oldstable|nightly) ;;
-              *)
-                echo "Skipping unsupported SDK track: $track"
-                continue
-                ;;
-            esac
-            echo "Triggering SDK build for track: $track (${old_branch:-none} -> ${new_branch})"
-            gh workflow run immortalwrt-sdk-matrix-builder.yml \
-              -f release_type="$track" \
-              -f architecture=ALL
-          done
-        done
+  packages:
+    needs: [versions, sdk]
+    runs-on: ubuntu-latest
+    outputs:
+      run_id: ${{ steps.dispatch.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Wait for published SDKs and dispatch the package builder
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          SDK_VERSIONS: ${{ needs.versions.outputs.versions }}
+          SDK_RECEIPT: ${{ needs.sdk.outputs.receipt }}
+        run: bash scripts/builder/trigger-sdk-packages.sh
+
+  package-deploy:
+    needs: [versions, packages]
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    outputs:
+      packages_sha: ${{ steps.wait.outputs.packages_sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Wait for the exact signed package deployment
+        id: wait
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          PACKAGE_RUN_ID: ${{ needs.packages.outputs.run_id }}
+          SDK_VERSIONS: ${{ needs.versions.outputs.versions }}
+        run: bash scripts/builder/wait-sdk-packages.sh
+
+  firmware:
+    needs: [versions, package-deploy]
+    permissions:
+      contents: read
+      actions: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.versions.outputs.firmware) }}
+    uses: ./.github/workflows/immortalwrt-builder.yml
+    with:
+      version_line: ${{ matrix.version_line }}
+      immortalwrt_version: ${{ matrix.version }}
+      release_type: ${{ matrix.track }}
+      packages_sha: ${{ needs.package-deploy.outputs.packages_sha }}
+    secrets: inherit

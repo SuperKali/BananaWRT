@@ -175,11 +175,22 @@ Each version line is described by a single JSON document — the source of truth
 | `immortalwrt-builder-nightly.yml` | dispatch only | Calls the reusable with the nightly version line (cron paused until a newer upstream line ships) |
 | `immortalwrt-builder-mtk-vendor.yml` | weekly cron + dispatch | Calls the reusable with the MTK-vendor variant |
 | `immortalwrt-builder-selfhost.yml` | dispatch | Ad-hoc manual build against any version / arch |
-| `immortalwrt-sdk-matrix-builder.yml` | dispatch | Publishes SDK tarballs per `(version, arch)` to `repo.superkali.me` |
+| `immortalwrt-sdk-matrix-builder.yml` | dispatch or reusable | Builds and publishes SDKs per `(version, arch)` |
+| `immortalwrt-sdk-trigger.yml` | push to `main` touching `version.json` | Builds SDKs, packages and firmware for upstream version bumps |
 | `immortalwrt-checker.yml` | 23-hour cron | Bumps upstream ImmortalWRT tag in `version.json` + `.config` via PR |
 | `immortalwrt-promote.yml` | dispatch | Promotes nightly → stable, demotes the previous stable → oldstable, sets up the next nightly |
 | `immortalwrt-repo-migrate.yml` | dispatch | Renames firmware track dirs + `firmware-index.json` on the CDN to match `version.json` tracks (no rebuild); skips version bumps. `dry_run` defaults true |
 | `changelog-updater.yml` | dispatch | Regenerates `CHANGELOG.md` from commit history |
+
+### Automatic SDK and package builds
+
+When a version bump lands on `main`, the workflow compares the previous and new `branch` values in `version.json`. It builds X64 and ARM64 SDKs for changed, active upstream versions. Track-only edits and custom forks such as MTK vendor do not start SDK builds. Build the MTK vendor SDK by hand: dispatch the SDK builder with `mtk-vendor` and `X64`. It is published as `25.12-linkup`, so the package builder also builds the MTK feed.
+
+The package builder is dispatched once after the CDN serves the new SDKs. It verifies each SDK archive and builds `additional_pack` from the workflow commit. The chain waits for that exact package run and verifies the signed deploy job for every requested version. The same commit is then pinned in the firmware build for each bumped channel. A failed or skipped deploy does not start firmware.
+
+SDK uploads share a queue that protects their CDN index. Firmware channels build and publish in parallel: each one uploads its files, then merges the firmware index into a fresh copy and reads it back, merging again if another channel overwrote it. Before an automatic firmware publish, the builder checks that the version and track are still current on `main`. Scheduled and manual firmware builds retain their existing inputs. Manual SDK builds do not dispatch packages.
+
+`PERSONAL_ACCESS_TOKEN` needs Actions read/write access in `openwrt-packages`. Integrate the package workflow's feed verification before activating the BananaWRT chain. If an existing SDK master index is missing or invalid, restore it before retrying. A fresh CDN can be seeded with `{"versions":{}}`. Rerun a failed wait job to check the same package run without dispatching a second one. Run `python3 -I tests/sdk-release.py` and `bash tests/firmware-publish.sh` for offline coverage.
 
 ## Build Infrastructure
 

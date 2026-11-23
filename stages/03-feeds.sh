@@ -67,9 +67,10 @@ stage_feeds() {
         chmod +x "$repo_script" 2>/dev/null || true
     fi
 
-    substep "Adding additional_pack feed (branch: $BANANAWRT_FEED_BRANCH)"
+    local feed_commit="${BANANAWRT_FEED_COMMIT:-}"
+    substep "Adding additional_pack feed (${feed_commit:-$BANANAWRT_FEED_BRANCH})"
     if (cd "$BANANAWRT_IMMORTAL_DIR" && \
-          "$repo_script" "$BANANAWRT_FEED_BRANCH" >/dev/null 2>&1); then
+          "$repo_script" "$BANANAWRT_FEED_BRANCH" "$feed_commit" >/dev/null 2>&1); then
         substep_done
     else
         substep_fail 'custom-repository.sh failed'
@@ -99,6 +100,15 @@ stage_feeds() {
         exit_with_error "./scripts/feeds update -a exited non-zero"
     fi
     rm -f "$log"
+
+    if [[ -n "$feed_commit" ]]; then
+        local actual_commit
+        if [[ ! -e "$BANANAWRT_IMMORTAL_DIR/feeds/additional_pack/.git" ]] ||
+           ! actual_commit=$(git -C "$BANANAWRT_IMMORTAL_DIR/feeds/additional_pack" rev-parse HEAD) ||
+           [[ "$actual_commit" != "$feed_commit" ]]; then
+            exit_with_error "additional_pack did not check out the deployed commit $feed_commit"
+        fi
+    fi
 
     if [[ -n "$dashboard_patch" ]]; then
         patch_luci_dashboard "$luci_feed" "$dashboard_patch" "$dashboard_applied"

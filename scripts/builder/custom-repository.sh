@@ -10,8 +10,17 @@
 #
 
 FEED_BRANCH="${1:-}"
+FEED_COMMIT="${2:-}"
 
-if [ -n "$FEED_BRANCH" ]; then
+if [ -n "$FEED_COMMIT" ]; then
+    if [[ ! "$FEED_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+        printf '%s\n' 'Invalid additional_pack commit' >&2
+        exit 1
+    fi
+    printf 'src-git additional_pack https://github.com/SuperKali/openwrt-packages^%s\n' \
+        "$FEED_COMMIT" >> feeds.conf.default
+    echo "Added custom feed at commit: ${FEED_COMMIT}"
+elif [ -n "$FEED_BRANCH" ]; then
     echo "src-git additional_pack https://github.com/SuperKali/openwrt-packages;${FEED_BRANCH}" >> feeds.conf.default
     echo "Added custom feed with branch: ${FEED_BRANCH}"
 else
