@@ -118,7 +118,7 @@ BananaWRT/
     └── workflows/                      Channel callers, reusable builder, SDK and housekeeping workflows
 ```
 
-The current on-device updater is `banana-update`, shipped in the `banana-utils` package of [openwrt-packages](https://github.com/SuperKali/openwrt-packages), with its LuCI page in `luci-app-banana-update`.
+The current on-device updater is `banana-update`, shipped in the `banana-utils` package of the BananaWRT package feed, with its LuCI page in `luci-app-banana-update`.
 
 ## `version.json` format
 
@@ -192,13 +192,13 @@ Each version line has one `version.json`. `compile.sh`, the update index, the SD
 
 When a version bump lands on `main`, `immortalwrt-sdk-trigger.yml` compares the old and new `branch` values. For each changed, active upstream version it builds the X64 and ARM64 SDKs. Track-only edits and forks such as MTK vendor do not build SDKs. To rebuild the MTK vendor SDK, run the SDK builder by hand with `mtk-vendor` and `X64`; it is published as `25.12-linkup`, so the package builder covers it too.
 
-Once the CDN serves the new SDKs, the trigger starts the package builder in openwrt-packages once. It waits for that exact run and checks that every requested version was deployed and signed. The firmware build of each bumped channel then pins the same package commit. If a package deploy fails or is skipped, no firmware is built.
+Once the CDN serves the new SDKs, the trigger starts the package builder of the private package repository (`SuperKali/openwrt-packages`) once. It waits for that exact run and checks that every requested version was deployed and signed. The firmware build of each bumped channel then pins the same package commit. If a package deploy fails or is skipped, no firmware is built.
 
 SDK uploads share a queue that protects the SDK index. Firmware channels build and publish in parallel: each uploads its files, merges its entry into a fresh copy of `firmware-index.json`, reads it back and merges again if another channel overwrote it. Before an automatic publish, the builder checks that the version and track are still current on `main`. Manual SDK builds do not start package builds.
 
 `PERSONAL_ACCESS_TOKEN` needs Actions read and write access in openwrt-packages. If the SDK index on the CDN is missing or invalid, restore it before retrying; a new CDN can start from `{"versions":{}}`. Rerunning a failed wait job checks the same package run again without starting a new one.
 
-The package builder in openwrt-packages compiles only the packages changed since the published feed. See its README for details.
+The package builder compiles only the packages changed since the published feed and takes the others from it.
 
 ## Build hosts
 
@@ -221,7 +221,7 @@ python3 -I tests/sdk-release.py    # SDK index and version bump chain
 | Repository | Purpose |
 |---|---|
 | [SuperKali/BananaWRT](https://github.com/SuperKali/BananaWRT) | Build orchestration, configs, patches, CI (this repository) |
-| [SuperKali/openwrt-packages](https://github.com/SuperKali/openwrt-packages) | The `additional_pack` feed: modem tools, LuCI apps, `banana-update` |
+| `SuperKali/openwrt-packages` (private) | Sources of the `additional_pack` feed, published only as signed binaries |
 | [SuperKali/immortalwrt-mt798x-rebase](https://github.com/SuperKali/immortalwrt-mt798x-rebase) | ImmortalWRT fork with MediaTek's Wi-Fi driver (MTK vendor line) |
 | [immortalwrt/immortalwrt](https://github.com/immortalwrt/immortalwrt) | Upstream ImmortalWRT (stable, oldstable, nightly) |
 

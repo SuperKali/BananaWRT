@@ -32,7 +32,7 @@ On top of ImmortalWRT, every image adds:
 - Signed firmware and package updates from `repo.superkali.me`, from LuCI (System → Updates) or the `banana-update` command.
 - Settings that survive updates, including Wi-Fi when you switch between the standard and the MediaTek vendor Wi-Fi driver.
 
-The custom packages live in [SuperKali/openwrt-packages](https://github.com/SuperKali/openwrt-packages).
+The BananaWRT packages (modem tools, LuCI apps, the updater) are closed source. They are published as signed binary feeds on `repo.superkali.me`, and every image has the feed configured.
 
 ## Hardware
 
@@ -82,7 +82,7 @@ A new upstream ImmortalWRT release is picked up automatically: a checker opens t
 | What | Where |
 |---|---|
 | Firmware images | [bananawrt/firmware](https://repo.superkali.me/?dir=bananawrt/firmware) |
-| Custom packages (per ImmortalWRT version) | [releases](https://repo.superkali.me/?dir=releases) |
+| BananaWRT package feeds (signed binaries, per ImmortalWRT version) | [releases](https://repo.superkali.me/?dir=releases) |
 | Build SDKs | [bananawrt/sdk](https://repo.superkali.me/?dir=bananawrt/sdk) |
 | Signing keys | [bananawrt/keys](https://repo.superkali.me/?dir=bananawrt/keys) |
 
