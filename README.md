@@ -31,7 +31,7 @@ Where upstream ImmortalWRT stops, BananaWRT layers:
 
 - **Turn-key modem integration** — autodetected APNs, ATC proto, eSIM/LPAC toolchain, SMS & band tools.
 - **Multi-version CI pipeline** — several ImmortalWRT version lines build in parallel from the same code base.
-- **Reproducible on-device upgrades** — the `bananawrt-update` FOTA flow serves signed builds from `repo.superkali.me`.
+- **Reproducible on-device upgrades** — the `banana-update` FOTA flow serves signed builds from `repo.superkali.me`.
 - **A single `./compile.sh` entry point** — the same orchestrator runs locally and in CI, with caching for `dl/`, `feeds/`, `ccache` and `staging_dir/`.
 
 ## Hardware
@@ -99,22 +99,28 @@ GitHub Releases carry the release notes; the binaries themselves live on `repo.s
 
 ### On-device updates
 
+In LuCI, **System → Updates** checks for new firmware and package updates, installs a build from the current channel or another one, and flashes a firmware file you upload. Settings are kept.
+
+The same client runs from the shell:
+
 ```sh
 # Interactive OTA (firmware + release notes)
-bananawrt-update fota
+banana-update fota
 
 # Custom-packages only (no reboot)
-bananawrt-update packages
+banana-update packages
 
 # Preview without touching the device
-bananawrt-update fota --dry-run
+banana-update fota --dry-run
 ```
 
 The OTA client reads `/etc/bananawrt_release`, queries `firmware-index.json`, and lists:
 
 - Upgrades within the current track;
 - Builds of other tracks sharing the same version line;
-- **Cross-version** upgrades (e.g. `v24.10 → v25.12-mtk-vendor`), which require explicit confirmation and perform a factory reset.
+- **Cross-version** builds (e.g. `v24.10 → v25.12-mtk-vendor`).
+
+Every firmware file is checked before anything is written. The configuration is kept, Wi-Fi included when switching between the standard and MTK vendor drivers. A factory reset happens only when the new image cannot keep the configuration, and only after you confirm it.
 
 EOL channels keep serving existing users until they migrate — the OTA client flags them prominently.
 
