@@ -1,20 +1,18 @@
-#!/bin/bash
+#!/bin/bash#!/bin/bash
 #
 # File name: custom-repository.sh
-# Description: BananaWRT add custom repository
+# Description: Add the BananaWRT additional_pack feed
 #
-# Copyright (c) 2024-2025 SuperKali <hello@superkali.me>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
-#
+
+set -euo pipefail
 
 FEED_BRANCH="${1:-}"
+FEED_REPO_URL="${BANANAWRT_FEED_URL:-https://github.com/ManiMaran420/openwrt-packages}"
 
-if [ -n "$FEED_BRANCH" ]; then
-    echo "src-git additional_pack https://github.com/SuperKali/openwrt-packages;${FEED_BRANCH}" >> feeds.conf.default
-    echo "Added custom feed with branch: ${FEED_BRANCH}"
+if [[ -n "$FEED_BRANCH" ]]; then
+    printf 'src-git additional_pack %s;%s\n' "$FEED_REPO_URL" "$FEED_BRANCH" >> feeds.conf.default
+    echo "Added additional_pack feed from $FEED_REPO_URL (branch: $FEED_BRANCH)"
 else
-    echo 'src-git additional_pack https://github.com/SuperKali/openwrt-packages' >> feeds.conf.default
-    echo "Added custom feed (default branch)"
+    printf 'src-git additional_pack %s\n' "$FEED_REPO_URL" >> feeds.conf.default
+    echo "Added additional_pack feed from $FEED_REPO_URL (default branch)"
 fi
