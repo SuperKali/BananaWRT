@@ -13,7 +13,10 @@ All notable changes to **BananaWRT** will be documented in this file.
 - Wi-Fi settings survive switching back to a Wi-Fi driver used before (standard ↔ MTK vendor firmware). Previously the networks could come back open, with the default name.
 - On 25.12, package updates read the architecture from `/etc/apk/arch`. Previously the page could say the BananaWRT feed was built for another architecture.
 - `banana-restore` no longer retries on every boot when there is no package to restore.
+- Package updates no longer hang on a stalled download: opkg gives up after 60 seconds without progress, and `banana-update` tries an update or upgrade up to three times (`banana-utils` 1.27).
+- `quectel-cm` retries a failing IPv6 call less often while IPv4 is up: after 2, 4 and 8 minutes, then every 16 minutes. On a SIM without IPv6 it used to retry every minute and fill the log.
 - The package feed builds only its own packages and the kernel modules they need. A full CI build of 25.12.2 dropped from about two hours to under one.
+- The feed CI compiles only the packages changed since the published feed and reuses the others, so a one-package change takes about 25 minutes per version. `full_rebuild` and `dry_run` inputs were added.
 
 ### 🍌 BananaWRT Core
 

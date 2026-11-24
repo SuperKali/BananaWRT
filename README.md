@@ -3,21 +3,19 @@
 
   # BananaWRT
 
-  **A purpose-built ImmortalWRT distribution for the Banana Pi R3 Mini**
+  **ImmortalWRT for the Banana Pi R3 Mini, built around a 5G modem**
   <br>
-  Engineered around the Fibocom FM350 5G modem, with first-class modem management,
-  automatic APN detection, eSIM support, and an end-to-end CI pipeline.
+  Modem management, automatic APN detection, eSIM support and signed over-the-air updates.
 
   <p>
     <a href="https://github.com/SuperKali/BananaWRT/actions/workflows/immortalwrt-builder-stable.yml"><img alt="Stable build" src="https://img.shields.io/github/actions/workflow/status/SuperKali/BananaWRT/immortalwrt-builder-stable.yml?label=stable&logo=github&style=for-the-badge"></a>
     <a href="https://github.com/SuperKali/BananaWRT/actions/workflows/immortalwrt-builder-oldstable.yml"><img alt="Oldstable build" src="https://img.shields.io/github/actions/workflow/status/SuperKali/BananaWRT/immortalwrt-builder-oldstable.yml?label=oldstable&logo=github&style=for-the-badge"></a>
-    <a href="https://github.com/SuperKali/BananaWRT/actions/workflows/immortalwrt-builder-nightly.yml"><img alt="Nightly build" src="https://img.shields.io/github/actions/workflow/status/SuperKali/BananaWRT/immortalwrt-builder-nightly.yml?label=nightly&logo=github&style=for-the-badge"></a>
     <a href="https://github.com/SuperKali/BananaWRT/actions/workflows/immortalwrt-builder-mtk-vendor.yml"><img alt="MTK vendor build" src="https://img.shields.io/github/actions/workflow/status/SuperKali/BananaWRT/immortalwrt-builder-mtk-vendor.yml?label=mtk-vendor&logo=github&style=for-the-badge"></a>
     <a href="https://github.com/SuperKali/BananaWRT/actions/workflows/immortalwrt-checker.yml"><img alt="Version checker" src="https://img.shields.io/github/actions/workflow/status/SuperKali/BananaWRT/immortalwrt-checker.yml?label=version%20bump&logo=github&style=for-the-badge"></a>
   </p>
 
   <sub>
-    <a href="#downloads">Downloads</a> · <a href="#installation">Install</a> · <a href="#release-channels">Channels</a> · <a href="#building-from-source">Build</a> · <a href="./DEVELOPMENT.md">Developers</a> · <a href="#contributing">Contribute</a>
+    <a href="#downloads">Downloads</a> · <a href="#installation">Install</a> · <a href="#updates">Updates</a> · <a href="#release-channels">Channels</a> · <a href="#building-from-source">Build</a> · <a href="./DEVELOPMENT.md">Developers</a> · <a href="#contributing">Contribute</a>
   </sub>
 </div>
 
@@ -25,14 +23,16 @@
 
 ## Overview
 
-BananaWRT is a specialised [OpenWRT](https://openwrt.org/) / [ImmortalWRT](https://immortalwrt.org/) distribution for the [Banana Pi R3 Mini](https://docs.banana-pi.org/en/BPI-R3_Mini/) (MediaTek MT7986A), tailored around the [Fibocom FM350](https://share.superkali.me/s/7SxD8MpKYEigFKF) 5G NR modem.
+BananaWRT is an [ImmortalWRT](https://immortalwrt.org/) (OpenWrt) distribution for the [Banana Pi R3 Mini](https://docs.banana-pi.org/en/BPI-R3_Mini/) (MediaTek MT7986A). It started around the [Fibocom FM350](https://share.superkali.me/s/7SxD8MpKYEigFKF) 5G modem and now also supports Quectel and other Fibocom USB modems.
 
-Where upstream ImmortalWRT stops, BananaWRT layers:
+On top of ImmortalWRT, every image adds:
 
-- **Turn-key modem integration** — autodetected APNs, ATC proto, eSIM/LPAC toolchain, SMS & band tools.
-- **Multi-version CI pipeline** — several ImmortalWRT version lines build in parallel from the same code base.
-- **Reproducible on-device upgrades** — the `banana-update` FOTA flow serves signed builds from `repo.superkali.me`.
-- **A single `./compile.sh` entry point** — the same orchestrator runs locally and in CI, with caching for `dl/`, `feeds/`, `ccache` and `staging_dir/`.
+- Modem support out of the box: automatic APN detection, the ATC protocol for the FM350, the Quectel connection manager, eSIM (LPAC), SMS, band locking and per-carrier signal readings.
+- The full USB data stack for Quectel and Fibocom modems in every channel: QMI (with the Quectel and Fibocom `qmi_wwan` drivers), MBIM, ECM and NCM, plus their LuCI protocol pages.
+- Signed firmware and package updates from `repo.superkali.me`, from LuCI (System → Updates) or the `banana-update` command.
+- Settings that survive updates, including Wi-Fi when you switch between the standard and the MediaTek vendor Wi-Fi driver.
+
+The custom packages live in [SuperKali/openwrt-packages](https://github.com/SuperKali/openwrt-packages).
 
 ## Hardware
 
@@ -40,109 +40,95 @@ Where upstream ImmortalWRT stops, BananaWRT layers:
 
 | Component | Specification |
 |---|---|
-| SoC | MediaTek **MT7986A** (Filogic 830) — 4× ARM Cortex-A53 @ 2.0 GHz |
+| SoC | MediaTek MT7986A (Filogic 830), 4× ARM Cortex-A53 at 2.0 GHz |
 | RAM | 2 GB DDR4 |
-| Storage | 8 GB eMMC · 128 MB SPI-NAND · M.2 Key-M for NVMe |
+| Storage | 8 GB eMMC, 128 MB SPI-NAND, M.2 Key-M for NVMe |
 | Ethernet | 2× 2.5 GbE (Airoha EN8811H) |
-| Wi-Fi | Wi-Fi 6 dual-band (MediaTek MT7976C, 574 / 2402 Mbps) |
-| Expansion | M.2 Key-B USB 3.0 (5G) · M.2 Key-M PCIe 2.0 x2 (NVMe) |
-| Power | 12 V 1.67 A USB-C PD |
+| Wi-Fi | Wi-Fi 6 dual band (MediaTek MT7976C, 574 / 2402 Mbps) |
+| Expansion | M.2 Key-B with USB 3.0 (modem), M.2 Key-M with PCIe 2.0 x2 (NVMe) |
+| Power | 12 V 1.67 A, USB-C PD |
 
-### Fibocom FM350 5G modem
+### Modems
+
+The FM350 is the reference modem. Quectel and Fibocom modems that use QMI, MBIM, ECM or NCM over USB work with the drivers and connection managers shipped in every image. The Quectel RG501Q-EU is tested in both ECM and QMI mode.
 
 > [!IMPORTANT]
-> BananaWRT targets FM350 modems running firmware **81600.0000.00.29.23.xx** or newer.
-> Firmware archive: [share.superkali.me/s/7SxD8MpKYEigFKF](https://share.superkali.me/s/7SxD8MpKYEigFKF).
-> AT commands are exposed on `/dev/ttyUSB1` and `/dev/ttyUSB3`.
+> On the Fibocom FM350, use firmware **81600.0000.00.29.23.xx** or newer
+> ([firmware archive](https://share.superkali.me/s/7SxD8MpKYEigFKF)). Its AT ports are `/dev/ttyUSB1` and `/dev/ttyUSB3`.
 
-| Property | Value |
+| FM350 | Value |
 |---|---|
-| Technology | 5G NR Sub-6 · LTE · WCDMA |
-| Peak throughput | 4.67 Gbps DL / 1.25 Gbps UL |
+| Technology | 5G NR Sub-6, LTE, WCDMA |
+| Peak throughput | 4.67 Gbps down, 1.25 Gbps up |
 | 5G bands | n1/2/3/7/25/28/30/38/40/41/48/66/77/78/79 |
 | LTE bands | b1/2/3/4/7/25/30/32/34/38/39/40/41/42/43/48/66 |
 | Interface | M.2 Key-B (USB 3.1 Gen 1 / PCIe Gen 3 x1) |
 
-## Release Channels
+## Release channels
 
-Each channel is an independent version line with its own `config/`, patches and CI caller, and every build publishes to `repo.superkali.me`:
+Each channel has its own configuration and CI workflow. All of them publish to `repo.superkali.me`.
 
-| Channel | Upstream | Track | Cadence | Audience |
-|---|---|---|---|---|
-| **Stable** | `immortalwrt/immortalwrt` tag (currently `25.12.2`) | `stable` | Monthly | Production deployments |
-| **Oldstable** | `immortalwrt/immortalwrt` tag (currently `24.10.6`) | `oldstable` | Monthly | Existing deployments not yet migrated off the previous stable |
-| **Nightly** | `immortalwrt/immortalwrt` (next pre-release line) | `nightly` | Weekly | Early testing of upcoming releases — *paused until a newer upstream line ships* |
-| **MTK-vendor** | `SuperKali/immortalwrt-mt798x-rebase` branch `25.12-linkup` | `mtk-vendor` | Weekly | Devices that benefit from MediaTek proprietary Wi-Fi drivers + HNAT + USB offload |
+| Channel | Source | Kernel | Packages | Built | For |
+|---|---|---|---|---|---|
+| Stable | ImmortalWRT `25.12.2` | 6.12 | apk | 1st of each month | Most users |
+| Oldstable | ImmortalWRT `24.10.7` | 6.6 | opkg | 15th of each month | Devices not yet moved to 25.12 |
+| MTK vendor | [`immortalwrt-mt798x-rebase`](https://github.com/SuperKali/immortalwrt-mt798x-rebase) branch `25.12-linkup` | 6.12 | apk | Every Tuesday | MediaTek's own Wi-Fi driver, hardware NAT and USB offload |
+| Nightly | Next ImmortalWRT pre-release | | | On demand | Testing; paused until a newer upstream line exists |
 
-Channel metadata lives in `config/<version_line>/version.json`. Adding a new channel is a matter of dropping a directory and a caller workflow — the reusable pipeline adapts.
+A new upstream ImmortalWRT release is picked up automatically: a checker opens the version bump, and merging it rebuilds the SDKs, the packages and the firmware of that channel.
 
 ## Downloads
 
-Firmware and artefacts are hosted on `repo.superkali.me`, served via a standard autoindex plus a machine-readable `firmware-index.json` for the OTA client.
-
-| Asset | URL |
+| What | Where |
 |---|---|
-| Firmware images | [Browse firmware](https://repo.superkali.me/?dir=bananawrt/firmware) |
-| Custom packages | [Browse packages](https://repo.superkali.me/?dir=releases) |
-| Build SDKs | [Browse SDKs](https://repo.superkali.me/?dir=bananawrt/sdk) |
-| Signing keys | [Browse keys](https://repo.superkali.me/?dir=bananawrt/keys) |
+| Firmware images | [bananawrt/firmware](https://repo.superkali.me/?dir=bananawrt/firmware) |
+| Custom packages (per ImmortalWRT version) | [releases](https://repo.superkali.me/?dir=releases) |
+| Build SDKs | [bananawrt/sdk](https://repo.superkali.me/?dir=bananawrt/sdk) |
+| Signing keys | [bananawrt/keys](https://repo.superkali.me/?dir=bananawrt/keys) |
 
-GitHub Releases carry the release notes; the binaries themselves live on `repo.superkali.me` to keep the GitHub archive slim.
+GitHub Releases carry the release notes. The binaries live on `repo.superkali.me`, together with `firmware-index.json`, which the update client reads.
 
 ## Installation
 
-### First flash
+1. Pick the build for your channel in the [firmware listing](https://repo.superkali.me/?dir=bananawrt/firmware).
+2. Flash it with the Banana Pi R3 Mini procedure from the [Banana Pi wiki](https://docs.banana-pi.org/en/BPI-R3_Mini/). Check the boot mode (eMMC or SPI-NAND): file names follow the ImmortalWRT convention (`*-emmc-*`, `*-snand-*`).
+3. Open LuCI at `http://192.168.1.1`, set a root password, insert the SIM and pick a modem profile.
 
-1. Pick a build that matches your board and channel under the [firmware listing](https://repo.superkali.me/?dir=bananawrt/firmware).
-2. Follow the official **Banana Pi R3 Mini** flashing procedure from the [Banana Pi wiki](https://docs.banana-pi.org/en/BPI-R3_Mini/). Pay attention to boot mode (eMMC vs SNAND) — BananaWRT artefacts follow the ImmortalWRT naming convention (`*-emmc-*`, `*-snand-*`).
-3. Connect to LuCI at `http://192.168.1.1`, configure your root password, then insert the FM350 SIM and pick a profile.
+## Updates
 
-### On-device updates
-
-In LuCI, **System → Updates** checks for new firmware and package updates, installs a build from the current channel or another one, and flashes a firmware file you upload. Settings are kept.
+In LuCI, System → Updates shows new firmware and package updates. From there you can install a build of the current channel or of another one, flash a firmware file you upload, or update the BananaWRT packages without rebooting.
 
 The same client runs from the shell:
 
 ```sh
-# Interactive OTA (firmware + release notes)
-banana-update fota
-
-# Custom-packages only (no reboot)
-banana-update packages
-
-# Preview without touching the device
-banana-update fota --dry-run
+banana-update fota            # download and install firmware
+banana-update packages        # update the BananaWRT packages, no reboot
+banana-update fota --dry-run  # run every check, change nothing
 ```
 
-The OTA client reads `/etc/bananawrt_release`, queries `firmware-index.json`, and lists:
+The client reads `/etc/bananawrt_release` and `firmware-index.json`, then offers newer builds of your track, builds of the other tracks of the same version line, and builds of other version lines (for example `v24.10` to `v25.12-mtk-vendor`).
 
-- Upgrades within the current track;
-- Builds of other tracks sharing the same version line;
-- **Cross-version** builds (e.g. `v24.10 → v25.12-mtk-vendor`).
+Before writing anything it checks every firmware file against the published SHA-256 sums and runs `sysupgrade -T`. The configuration is kept. A factory reset happens only when the new image cannot keep it, and only after you confirm.
 
-Every firmware file is checked before anything is written. The configuration is kept, Wi-Fi included when switching between the standard and MTK vendor drivers. A factory reset happens only when the new image cannot keep the configuration, and only after you confirm it.
+Package updates retry a failed download up to three times, so a slow or flaky mobile connection does not leave an update half done. Channels marked end of life keep their files until users move on, and the client warns about them.
 
-EOL channels keep serving existing users until they migrate — the OTA client flags them prominently.
+## Building from source
 
-## Building from Source
-
-BananaWRT ships a single orchestrator, [`compile.sh`](./compile.sh), that drives both local and CI builds. Full details — pipeline stages, repository layout, `version.json` schema, coding guidelines — live in **[DEVELOPMENT.md](./DEVELOPMENT.md)**.
+[`compile.sh`](./compile.sh) drives both local and CI builds. [DEVELOPMENT.md](./DEVELOPMENT.md) covers the pipeline stages, the repository layout, the `version.json` format and the CI workflows.
 
 ```sh
-./compile.sh                                        # interactive dialog menu
-./compile.sh --version-line v25.12 --track nightly  # non-interactive
-./compile.sh --help                                 # full reference
+./compile.sh                                        # interactive menu
+./compile.sh --version-line v25.12 --track stable   # non-interactive
+./compile.sh --help                                 # all options
 ```
 
 ## Contributing
 
-Contributions are welcome across the full stack:
+- Bug reports: include `/etc/bananawrt_release`, the modem model and the steps to reproduce.
+- New channels: add `config/<version_line>/<track>/.config`, a `version.json` and a caller workflow. `v25.12-mtk-vendor` is a complete example.
+- Documentation fixes are welcome too.
 
-- **Bug reports** — include kernel version, `/etc/bananawrt_release`, reproduction steps.
-- **Channel additions** — drop `config/<new_line>/{track}/.config` + a `version.json` + a caller workflow. See `v25.12-mtk-vendor` as a worked example.
-- **Documentation** — from improved user guides to architecture notes.
-
-See [DEVELOPMENT.md](./DEVELOPMENT.md) for the full developer guide. Please follow the existing commit message style (`type(scope): subject`) and keep each pull request focused on a single concern.
+Commit messages follow `type(scope): subject`. Keep each pull request to one change. See [DEVELOPMENT.md](./DEVELOPMENT.md) for the details.
 
 ## Community
 
@@ -154,7 +140,7 @@ If BananaWRT saves you time, a ⭐️ on the repository helps more than you migh
   </a>
 </p>
 
-> **Milestone:** at **200 ⭐️** the remaining premium BananaWRT packages are released publicly. Financial sponsorship is available via the **Sponsor** button at the top of the page — the star count is purely a way of recognising community interest.
+> **Milestone:** at 200 ⭐️ the remaining premium BananaWRT packages become public. You can also sponsor the project with the Sponsor button at the top of the page; the star count is just a way to see how much interest there is.
 
 <p align="center">
   <img src="https://repobeats.axiom.co/api/embed/be7f3efd58c41ba325eff1a5b101c8e40956ff2e.svg" alt="Repobeats analytics">
@@ -162,10 +148,10 @@ If BananaWRT saves you time, a ⭐️ on the repository helps more than you migh
 
 ## License
 
-BananaWRT is built on top of ImmortalWRT and inherits the licensing of each component (predominantly **GPL-2.0**). Original BananaWRT code (scripts, workflows, configs) is released under the **MIT License** unless otherwise noted in the file header.
+BananaWRT builds on ImmortalWRT and keeps the license of each component (mostly GPL-2.0). BananaWRT's own scripts, workflows and configuration are MIT licensed unless a file header says otherwise.
 
 ---
 
 <div align="center">
-  <sub>Crafted with care · Copyright © 2024–2026 SuperKali</sub>
+  <sub>Copyright © 2024-2026 SuperKali</sub>
 </div>

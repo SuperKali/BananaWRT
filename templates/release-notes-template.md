@@ -1,30 +1,25 @@
 <p align="center">
-  <!-- Logo -->
-  <img src="https://cdn.superkali.me/1113423827479274/bananawrt-logo.png" alt="BananaWRT Logo" width="350">
+  <img src="https://cdn.superkali.me/1113423827479274/bananawrt-logo.png" alt="BananaWRT logo" width="350">
 </p>
 
-<h2 align="center">BananaWRT {{RELEASE_TYPE}} Release</h2>
+<h2 align="center">BananaWRT {{RELEASE_TYPE}} release</h2>
 
-- 🕛 **Date**: {{RELEASE_DATE}}
-- 🛜 **Target Devices:** {{TARGET_DEVICES}}
-- 🔌 **Kernel Version:** {{BANANAWRT_KERNEL}}
-- 📌 **Firmware Version:** {{BANANAWRT_VERSION}}
+| | |
+|---|---|
+| Date | {{RELEASE_DATE}} |
+| Version line | {{VERSION_LINE}} |
+| Firmware | {{BANANAWRT_VERSION}} |
+| Kernel | {{BANANAWRT_KERNEL}} |
+| Device | {{TARGET_DEVICES}} |
 
-<div style="text-align: center; margin-top: 20px;">
-  <h2 style="font-family: Arial, sans-serif; font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 20px;">Download & Resources</h2>
-</div>
+### Download
 
-📥 **[Download Firmware]({{DOWNLOAD_URL}})**
-➡️ Download firmware files directly from the BananaWRT repository.
+The images and their SHA-256 sums are on the BananaWRT repository: **[download this build]({{DOWNLOAD_URL}})**.
 
-🔗 **[Releases Page](https://github.com/SuperKali/BananaWRT/releases)**
-➡️ Explore detailed information about this release, including changelogs, files, and more.
+### Update
 
-🛠️ **[Update Script](https://github.com/SuperKali/BananaWRT/blob/main/scripts/update-script.sh)**  
-➡️ Upgrade your device seamlessly using our official script.
+On a device already running BananaWRT, open LuCI, go to System → Updates and pick this build, or run `banana-update fota` from the shell. Your settings are kept. See [Updates](https://github.com/SuperKali/BananaWRT#updates) in the README.
 
-💬 **[Support Forum](https://github.com/SuperKali/BananaWRT/discussions)**  
-➡️ Join the community discussion, ask questions, and get support.
+### Changes
 
-📄 **[View Full Changelog](https://github.com/SuperKali/BananaWRT/blob/main/CHANGELOG.md)**  
-➡️ Read the complete list of updates and improvements in this release.
+The full list is in the [changelog](https://github.com/SuperKali/BananaWRT/blob/main/CHANGELOG.md). Questions and reports go to the [discussions](https://github.com/SuperKali/BananaWRT/discussions).

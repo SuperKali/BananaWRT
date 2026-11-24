@@ -1,28 +1,29 @@
-# BananaWRT Development Guide
+# BananaWRT development guide
 
-Technical reference for contributors and maintainers. See [README.md](./README.md) for user-facing material.
+Technical reference for contributors and maintainers. User documentation is in [README.md](./README.md).
 
 ## Contents
 
-- [Building from Source](#building-from-source)
-- [Pipeline Stages](#pipeline-stages)
-- [Repository Layout](#repository-layout)
-- [`version.json` Schema](#versionjson-schema)
-- [Adding a New Channel](#adding-a-new-channel)
-- [CI / Workflows](#ci--workflows)
-- [Build Infrastructure](#build-infrastructure)
-- [Related Repositories](#related-repositories)
-- [Coding Guidelines](#coding-guidelines)
+- [Building from source](#building-from-source)
+- [Pipeline stages](#pipeline-stages)
+- [Repository layout](#repository-layout)
+- [`version.json` format](#versionjson-format)
+- [Adding a channel](#adding-a-channel)
+- [CI workflows](#ci-workflows)
+- [Build hosts](#build-hosts)
+- [Tests](#tests)
+- [Related repositories](#related-repositories)
+- [Coding guidelines](#coding-guidelines)
 
 ---
 
-## Building from Source
+## Building from source
 
-All pipelines — local and CI — go through the same orchestrator, [`compile.sh`](./compile.sh).
+Local and CI builds both go through [`compile.sh`](./compile.sh).
 
-### Dependency setup
+### Build host setup
 
-Run the apt bootstrap once per build host. It handles `x86_64` and `aarch64` and is idempotent.
+Install the build dependencies once per host. The script works on `x86_64` and `aarch64` and can be run again safely.
 
 ```sh
 sudo /bin/bash .github/scripts/setup-env.sh setup
@@ -31,189 +32,203 @@ sudo /bin/bash .github/scripts/setup-env.sh setup
 ### Quick start
 
 ```sh
-# Interactive dialog menu
-./compile.sh
-
-# Non-interactive build
-./compile.sh --version-line v25.12 --track nightly
-
-# Run a single stage (useful during debugging)
-./compile.sh --stage compile --version-line v25.12 --track nightly
-
-# Full CLI reference
-./compile.sh --help
+./compile.sh                                                   # interactive menu
+./compile.sh --version-line v25.12 --track stable              # non-interactive
+./compile.sh --stage compile --version-line v25.12 --track stable  # one stage only
+./compile.sh --help                                            # all options
 ```
 
-### CI invocation
+Useful options:
 
-The callers in `.github/workflows/immortalwrt-builder-*.yml` resolve the target version line, then delegate to the reusable workflow [`immortalwrt-builder.yml`](./.github/workflows/immortalwrt-builder.yml), which runs:
+| Option | Effect |
+|---|---|
+| `--jobs N` | Parallel make jobs. By default, one per CPU but at most one per 1.25 GiB of usable memory (the smallest cgroup `memory.max` of the process, or `MemAvailable`). |
+| `--no-package` | Stop after the compile stage (used by the SDK workflow). |
+| `--keep-source` | Keep `$WORKSPACE/immortalwrt` on exit. |
+| `--clean`, `--clean=all` | Remove `build_dir/`, or also `dl/` and `staging_dir/`, before building. |
+| `--ci` | CI mode: upload to the CDN and create the GitHub release. |
+
+### In CI
+
+The callers in `.github/workflows/immortalwrt-builder-*.yml` resolve the version line and call the reusable workflow [`immortalwrt-builder.yml`](./.github/workflows/immortalwrt-builder.yml), which runs:
 
 ```sh
 ./compile.sh --ci --version-line … --track … --immortalwrt-version …
 ```
 
-Runner selection is dynamic: the pipeline queries the GitHub API for an idle self-hosted runner matching the requested arch, with `ubuntu-latest` / `ubuntu-24.04-arm` as the fallback.
-
-## Pipeline Stages
+## Pipeline stages
 
 ```
-  clone → patch → feeds → config → download → compile → package
+clone → patch → feeds → config → download → compile → package
 ```
 
-Each stage lives in [`stages/`](./stages) and can be invoked individually with `--stage <name>`:
+Each stage is a script in [`stages/`](./stages) and can be run alone with `--stage <name>`.
 
-| Stage | Script | Responsibility |
+| Stage | Script | What it does |
 |---|---|---|
-| 1 — clone | [`01-clone.sh`](./stages/01-clone.sh) | Fetch ImmortalWRT source at the pinned ref (supports custom `repo_url` + branch refs) |
-| 2 — patch | [`02-patch.sh`](./stages/02-patch.sh) | Apply DTS, kernel and whole-tree patches from `patch/` |
-| 3 — feeds | [`03-feeds.sh`](./stages/03-feeds.sh) | Inject `additional_pack`, update feeds, patch the LuCI Dashboard on 25.12 MTK vendor, then install feeds |
-| 4 — config | [`04-config.sh`](./stages/04-config.sh) | Drop the channel `.config`, strip stock packages, generate metadata |
-| 5 — download | [`05-download.sh`](./stages/05-download.sh) | `make download -jN`, wipe stub archives |
-| 6 — compile | [`06-compile.sh`](./stages/06-compile.sh) | `make -jN` with `-j1 V=s` fallback on failure |
-| 7 — package | [`07-package.sh`](./stages/07-package.sh) | Pack artefacts, update `firmware-index.json`, FTP upload, create GitHub Release |
+| 1. clone | [`01-clone.sh`](./stages/01-clone.sh) | Fetches ImmortalWRT at the pinned tag or branch (a custom `repo_url` is supported) |
+| 2. patch | [`02-patch.sh`](./stages/02-patch.sh) | Applies the device tree, kernel and whole-tree patches from `patch/` |
+| 3. feeds | [`03-feeds.sh`](./stages/03-feeds.sh) | Adds the `additional_pack` feed, updates the feeds, patches the LuCI Dashboard on 25.12 MTK vendor, installs the feeds |
+| 4. config | [`04-config.sh`](./stages/04-config.sh) | Installs the channel `.config`, drops stock packages that `additional_pack` replaces, writes the release metadata |
+| 5. download | [`05-download.sh`](./stages/05-download.sh) | `make download`, then removes truncated archives |
+| 6. compile | [`06-compile.sh`](./stages/06-compile.sh) | `make -jN`; on failure it runs again with `-j1 V=s` to show the error |
+| 7. package | [`07-package.sh`](./stages/07-package.sh) | Collects the images, uploads them, updates `firmware-index.json` and creates the GitHub release |
 
-On 25.12 MTK vendor, the feeds stage reverses the previous Dashboard patch before updating LuCI on a reused workspace, then applies the current patch. It does not reset other changes in the feed. Run `bash tests/feeds-dashboard.sh` to check this lifecycle offline.
+On 25.12 MTK vendor, the feeds stage first reverts the Dashboard patch left by a previous build in a reused workspace, then applies the current one. It leaves other changes in the feed alone.
 
-Firmware publishing requires an existing, valid `firmware-index.json`. Restore the index from backup if it is missing or invalid. On a new repository, seed it with the configured version lines and empty `tracks` objects before the first publish. Run `bash tests/firmware-publish.sh` to check the failure paths offline.
+Publishing needs a valid `firmware-index.json` on the CDN. If it is missing or invalid, the package stage stops instead of writing a new one: restore it from a backup. On a new CDN, seed it with the configured version lines and empty `tracks` objects before the first publish.
 
-GitHub Actions cache layers are scoped per `version_line + track` and save the bulk of feed clones and source downloads across runs:
+GitHub Actions caches are kept per `version_line` and track:
 
-- `dl/` — upstream tarballs (arch-agnostic)
-- `feeds/` — Git clones of every `src-git` feed (arch-agnostic)
-- `.ccache/` — compiler cache (arch-specific)
-- `staging_dir/` — host + toolchain + target staging (arch-specific)
+- `dl/`: upstream source archives (any architecture)
+- `feeds/`: Git clones of the `src-git` feeds (any architecture)
+- `.ccache/`: compiler cache (per architecture)
+- `staging_dir/`: host tools, toolchain and target staging (per architecture)
 
-## Repository Layout
+## Repository layout
 
 ```
 BananaWRT/
-├── compile.sh                          Main orchestrator
-├── lib/                                Shared helpers (colour output, timers, config, dialog)
-├── stages/                             7 pipeline stages (01-clone … 07-package)
+├── compile.sh                          Main entry point
+├── lib/                                Shared helpers (output, timers, config parsing, dialog menu)
+├── stages/                             The 7 pipeline stages
 ├── config/
-│   ├── v24.10/                         Oldstable version line
+│   ├── v24.10/                         Oldstable line
 │   │   ├── oldstable/.config
 │   │   └── version.json
-│   ├── v25.12/                         Stable version line
+│   ├── v25.12/                         Stable line
 │   │   ├── stable/.config
 │   │   └── version.json
-│   └── v25.12-mtk-vendor/              MTK vendor-driver variant
+│   └── v25.12-mtk-vendor/              MediaTek vendor driver line
 │       ├── mtk-vendor/.config
 │       └── version.json
 ├── patch/
-│   ├── feeds/<vl>/<track>/<feed>/     Patches to checked-out feeds (applied explicitly by the feeds stage)
-│   ├── kernel/dts/<vl>/<track>/        Device-tree drop-ins
-│   ├── kernel/files/<vl>/<track>/      Kernel source patches
-│   └── tree/<vl>/<track>/*.patch       Whole-tree quilt patches
+│   ├── feeds/<vl>/<track>/<feed>/      Patches to checked-out feeds (applied by the feeds stage)
+│   ├── kernel/dts/<vl>/<track>/        Device tree files
+│   ├── kernel/files/<vl>/<track>/      Kernel source files
+│   └── tree/<vl>/<track>/*.patch       Whole-tree patches
 ├── scripts/
-│   ├── builder/                        Feed injection + stock-pkg removal
+│   ├── builder/                        Feed setup and stock package removal
 │   ├── utils/                          patch-manager.sh, metadata-generator.sh
-│   └── update-script.sh                On-device OTA client
+│   └── update-script.sh                Old on-device updater, kept for devices that still run it
+├── templates/                          GitHub release notes template
+├── tests/                              Offline tests of the CI and publishing logic
 └── .github/
-    ├── scripts/setup-env.sh            Apt bootstrap for build hosts
-    └── workflows/                      CI callers + reusable builder + housekeeping
+    ├── scripts/setup-env.sh            Build host setup
+    └── workflows/                      Channel callers, reusable builder, SDK and housekeeping workflows
 ```
 
-## `version.json` Schema
+The current on-device updater is `banana-update`, shipped in the `banana-utils` package of [openwrt-packages](https://github.com/SuperKali/openwrt-packages), with its LuCI page in `luci-app-banana-update`.
 
-Each version line is described by a single JSON document — the source of truth consumed by `compile.sh`, the OTA index, and the release-cleanup automation.
+## `version.json` format
+
+Each version line has one `version.json`. `compile.sh`, the update index, the SDK and package workflows and the release cleanup all read it.
 
 ```jsonc
 {
   "version_line": "v25.12-mtk-vendor",
-  "branch": "25.12-linkup",                                       // human-readable version
-  "status": "active",                                             // active | eol
-  "tracks": ["mtk-vendor"],                                       // release tracks served
-  "feed_branch": "main",                                          // custom feed branch to pin
+  "branch": "25.12-linkup",                 // version label
+  "status": "active",                       // active | eol
+  "tracks": ["mtk-vendor"],                 // tracks built from this line
+  "feed_branch": "main",                    // branch of the additional_pack feed
   "repo_url": "https://github.com/SuperKali/immortalwrt-mt798x-rebase",
-  "ref_type": "branch",                                           // tag (default) or branch
-  "ref": "25.12-linkup",                                          // explicit git ref
+  "ref_type": "branch",                     // tag (default) or branch
+  "ref": "25.12-linkup",                    // explicit Git ref
   "version_repo_url": "https://repo.superkali.me/releases/25.12-mtk-vendor",
   "checker_pattern": "25\\.12-mtk-vendor",
-  "packages": [ "atc-apn-database", "banana-utils", "lpac", "…" ]
+  "packages": ["atc-apn-database", "banana-utils", "lpac", "…"]
 }
 ```
 
-| Field | Purpose |
+| Field | Meaning |
 |---|---|
-| `version_line` | Directory and registry key (`config/<version_line>/`). Must be unique. |
-| `branch` | Human-readable version label (used in release tags and the `bananawrt_release` file). |
-| `status` | `active` versions are serviced; `eol` versions stay hosted but are flagged in the OTA client. |
-| `tracks` | One or more release tracks served under this line (`stable`, `nightly`, custom). |
-| `feed_branch` | Branch to pin the `additional_pack` feed to. |
-| `repo_url` | Optional override for the upstream ImmortalWRT git URL. |
+| `version_line` | Directory name under `config/` and key in the update index. Must be unique. |
+| `branch` | Version label, used in release tags, `/etc/bananawrt_release` and the package feed path. |
+| `status` | `active` lines are built. `eol` lines stay on the CDN and the update client flags them. |
+| `tracks` | Tracks built from this line (`stable`, `oldstable`, `nightly`, `mtk-vendor`). |
+| `feed_branch` | Branch the `additional_pack` feed is pinned to. |
+| `repo_url` | Upstream Git URL, when it is not ImmortalWRT. |
 | `ref_type` | `tag` (default) or `branch`. |
-| `ref` | Explicit git ref. Defaults to `v${branch}` for tag mode, `${branch}` for branch mode. |
-| `version_repo_url` | URL baked into `CONFIG_VERSION_REPO` (apk distfeeds root). Defaults to the upstream `downloads.immortalwrt.org` path. |
-| `buildinfo_base` | Optional URL serving `targets/mediatek/filogic/config.buildinfo`. When `repo_url` is set, the fetch is skipped entirely and the shipped `.config` becomes the diff base. |
-| `checker_pattern` | Regex used by `immortalwrt-checker.yml` to detect new upstream tags. Irrelevant for branch-based variants. |
-| `packages` | List of `additional_pack` packages expected for this line. Consumed by tooling, not enforced by the build. |
+| `ref` | Git ref. Defaults to `v${branch}` for tags and `${branch}` for branches. |
+| `version_repo_url` | Value of `CONFIG_VERSION_REPO`, the root of the package feeds on the device. Defaults to `downloads.immortalwrt.org`. |
+| `buildinfo_base` | Optional URL of `targets/mediatek/filogic/config.buildinfo`. Ignored when `repo_url` is set; the shipped `.config` is then the base. |
+| `checker_pattern` | Regex the version checker uses to find new upstream tags. Not used by branch-based lines. |
+| `packages` | `additional_pack` packages expected on this line. Used by tooling and the promote workflow; the build does not enforce it. |
 
-## Adding a New Channel
+## Adding a channel
 
-1. **Decide the shape.** Is it a new track inside an existing version line, or a whole new line? New line = new upstream source or a hard fork; new track = same upstream with different cadence or config.
-2. **Seed the directory tree.**
+1. Decide whether it is a new track of an existing line (same upstream, different config or schedule) or a new line (new upstream version or fork).
+2. Create the directory:
    ```
    config/<version_line>/
-     ├── <track>/.config              # start from an adjacent channel
-     └── version.json                 # fill in the schema above
+     ├── <track>/.config      # start from a similar channel
+     └── version.json         # see the format above
    ```
-3. **(Optional) Add kernel or tree patches** under `patch/kernel/{dts,files}/<vl>/<track>/` and `patch/tree/<vl>/<track>/*.patch`.
-4. **Create a caller workflow** at `.github/workflows/immortalwrt-builder-<track>.yml`. Mirror `immortalwrt-builder-mtk-vendor.yml`: resolve `version_line` + `immortalwrt_version`, then delegate to `immortalwrt-builder.yml`.
-5. **(Optional) Track upstream bumps** by adding an entry to `immortalwrt-checker.yml`. Skip for branch-based variants — the branch moves on its own.
-6. **Update `README.md`** so users can find the new channel.
+3. Add kernel or tree patches under `patch/kernel/{dts,files}/<vl>/<track>/` and `patch/tree/<vl>/<track>/` if needed.
+4. Add a caller workflow `.github/workflows/immortalwrt-builder-<track>.yml`, modelled on `immortalwrt-builder-mtk-vendor.yml`.
+5. For tag-based lines, add the line to `immortalwrt-checker.yml` so upstream releases are picked up.
+6. Add the channel to the README.
 
-`v25.12-mtk-vendor` is a worked example covering every point above.
+`v25.12-mtk-vendor` covers every step.
 
-## CI / Workflows
+## CI workflows
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| `immortalwrt-builder.yml` | reusable | Shared build pipeline — caches, auth, runner resolution, `compile.sh` |
-| `immortalwrt-builder-stable.yml` | monthly cron + dispatch | Calls the reusable with the stable version line |
-| `immortalwrt-builder-oldstable.yml` | monthly cron + dispatch | Calls the reusable with the oldstable version line |
-| `immortalwrt-builder-nightly.yml` | dispatch only | Calls the reusable with the nightly version line (cron paused until a newer upstream line ships) |
-| `immortalwrt-builder-mtk-vendor.yml` | weekly cron + dispatch | Calls the reusable with the MTK-vendor variant |
-| `immortalwrt-builder-selfhost.yml` | dispatch | Ad-hoc manual build against any version / arch |
-| `immortalwrt-sdk-matrix-builder.yml` | dispatch or reusable | Builds and publishes SDKs per `(version, arch)` |
-| `immortalwrt-sdk-trigger.yml` | push to `main` touching `version.json` | Builds SDKs, packages and firmware for upstream version bumps |
-| `immortalwrt-checker.yml` | 23-hour cron | Bumps upstream ImmortalWRT tag in `version.json` + `.config` via PR |
-| `immortalwrt-promote.yml` | dispatch | Promotes nightly → stable, demotes the previous stable → oldstable, sets up the next nightly |
-| `immortalwrt-repo-migrate.yml` | dispatch | Renames firmware track dirs + `firmware-index.json` on the CDN to match `version.json` tracks (no rebuild); skips version bumps. `dry_run` defaults true |
-| `changelog-updater.yml` | dispatch | Regenerates `CHANGELOG.md` from commit history |
+| `immortalwrt-builder.yml` | reusable | Shared build: caches, runner choice, `compile.sh`, publishing |
+| `immortalwrt-builder-stable.yml` | 1st of each month, manual | Builds the stable track |
+| `immortalwrt-builder-oldstable.yml` | 15th of each month, manual | Builds the oldstable track |
+| `immortalwrt-builder-mtk-vendor.yml` | every Tuesday, manual | Builds the MTK vendor track |
+| `immortalwrt-builder-nightly.yml` | manual | Builds the nightly track (schedule paused until a newer upstream line exists) |
+| `immortalwrt-builder-selfhost.yml` | manual | One-off build of any version and architecture |
+| `immortalwrt-sdk-matrix-builder.yml` | manual, reusable | Builds and publishes the SDK of each version and architecture |
+| `immortalwrt-sdk-trigger.yml` | push to `main` changing `version.json` | Builds SDKs, packages and firmware after a version bump |
+| `immortalwrt-checker.yml` | every 23 hours, manual | Opens a pull request when ImmortalWRT publishes a new tag |
+| `immortalwrt-promote.yml` | manual | Promotes nightly to stable and stable to oldstable, then prepares the next nightly |
+| `immortalwrt-repo-migrate.yml` | manual | Renames firmware track directories and `firmware-index.json` entries on the CDN to match `version.json` (no rebuild). `dry_run` is on by default |
+| `changelog-updater.yml` | manual | Regenerates `CHANGELOG.md` from the commit history |
 
-### Automatic SDK and package builds
+### Version bumps
 
-When a version bump lands on `main`, the workflow compares the previous and new `branch` values in `version.json`. It builds X64 and ARM64 SDKs for changed, active upstream versions. Track-only edits and custom forks such as MTK vendor do not start SDK builds. Build the MTK vendor SDK by hand: dispatch the SDK builder with `mtk-vendor` and `X64`. It is published as `25.12-linkup`, so the package builder also builds the MTK feed.
+When a version bump lands on `main`, `immortalwrt-sdk-trigger.yml` compares the old and new `branch` values. For each changed, active upstream version it builds the X64 and ARM64 SDKs. Track-only edits and forks such as MTK vendor do not build SDKs. To rebuild the MTK vendor SDK, run the SDK builder by hand with `mtk-vendor` and `X64`; it is published as `25.12-linkup`, so the package builder covers it too.
 
-The package builder is dispatched once after the CDN serves the new SDKs. It verifies each SDK archive and builds `additional_pack` from the workflow commit. The chain waits for that exact package run and verifies the signed deploy job for every requested version. The same commit is then pinned in the firmware build for each bumped channel. A failed or skipped deploy does not start firmware.
+Once the CDN serves the new SDKs, the trigger starts the package builder in openwrt-packages once. It waits for that exact run and checks that every requested version was deployed and signed. The firmware build of each bumped channel then pins the same package commit. If a package deploy fails or is skipped, no firmware is built.
 
-SDK uploads share a queue that protects their CDN index. Firmware channels build and publish in parallel: each one uploads its files, then merges the firmware index into a fresh copy and reads it back, merging again if another channel overwrote it. Before an automatic firmware publish, the builder checks that the version and track are still current on `main`. Scheduled and manual firmware builds retain their existing inputs. Manual SDK builds do not dispatch packages.
+SDK uploads share a queue that protects the SDK index. Firmware channels build and publish in parallel: each uploads its files, merges its entry into a fresh copy of `firmware-index.json`, reads it back and merges again if another channel overwrote it. Before an automatic publish, the builder checks that the version and track are still current on `main`. Manual SDK builds do not start package builds.
 
-`PERSONAL_ACCESS_TOKEN` needs Actions read/write access in `openwrt-packages`. Integrate the package workflow's feed verification before activating the BananaWRT chain. If an existing SDK master index is missing or invalid, restore it before retrying. A fresh CDN can be seeded with `{"versions":{}}`. Rerun a failed wait job to check the same package run without dispatching a second one. Run `python3 -I tests/sdk-release.py` and `bash tests/firmware-publish.sh` for offline coverage.
+`PERSONAL_ACCESS_TOKEN` needs Actions read and write access in openwrt-packages. If the SDK index on the CDN is missing or invalid, restore it before retrying; a new CDN can start from `{"versions":{}}`. Rerunning a failed wait job checks the same package run again without starting a new one.
 
-## Build Infrastructure
+The package builder in openwrt-packages compiles only the packages changed since the published feed. See its README for details.
 
-| Runner | Arch | Spec | Location |
-|---|---|---|---|
-| `netcup-de-arm64` | ARM64 | 10-vCore @ 3.0 GHz · 16 GB RAM · 1 TB NVMe · 2.5 Gbps | Germany |
-| `ubuntu-24.04-arm` (fallback) | ARM64 | GitHub-hosted | — |
-| `ubuntu-latest` (fallback) | X64 | GitHub-hosted | — |
+## Build hosts
 
-The reusable builder first probes for an idle self-hosted runner that matches the requested arch; only when none is available does it spill over to GitHub-hosted. With `AUTO`, the default, it takes an idle self-hosted runner of either arch (X64 first) and falls back to `ubuntu-24.04-arm`. This keeps the cluster warm and avoids queueing while still tolerating outages.
+The reusable builder looks for an idle self-hosted runner first. With `AUTO`, the default, it takes an idle self-hosted runner of either architecture (X64 first) and otherwise uses GitHub's `ubuntu-24.04-arm`. A specific architecture falls back to `ubuntu-latest` (X64) or `ubuntu-24.04-arm`.
 
-## Related Repositories
+On a shared machine, run one firmware build at a time and cap the runner's memory (for example `MemoryMax=` in a systemd drop-in) so an out-of-memory kill stops the job rather than the host. The default job count of `compile.sh` follows that cap: 16 jobs under a 20 GiB limit.
+
+## Tests
+
+The tests run offline, with no network or build host:
+
+```sh
+bash tests/feeds-dashboard.sh      # Dashboard patch revert and reapply on MTK vendor
+bash tests/firmware-publish.sh     # firmware index checks and publish failure paths
+python3 -I tests/sdk-release.py    # SDK index and version bump chain
+```
+
+## Related repositories
 
 | Repository | Purpose |
 |---|---|
-| [`SuperKali/BananaWRT`](https://github.com/SuperKali/BananaWRT) | Orchestrator, configs, patches, CI — **this repo** |
-| [`SuperKali/immortalwrt-mt798x-rebase`](https://github.com/SuperKali/immortalwrt-mt798x-rebase) | Upstream fork with MTK proprietary Wi-Fi drivers (`mtk-vendor` variant) |
-| [`immortalwrt/immortalwrt`](https://github.com/immortalwrt/immortalwrt) | Upstream ImmortalWRT (`stable` / `nightly` variants) |
+| [SuperKali/BananaWRT](https://github.com/SuperKali/BananaWRT) | Build orchestration, configs, patches, CI (this repository) |
+| [SuperKali/openwrt-packages](https://github.com/SuperKali/openwrt-packages) | The `additional_pack` feed: modem tools, LuCI apps, `banana-update` |
+| [SuperKali/immortalwrt-mt798x-rebase](https://github.com/SuperKali/immortalwrt-mt798x-rebase) | ImmortalWRT fork with MediaTek's Wi-Fi driver (MTK vendor line) |
+| [immortalwrt/immortalwrt](https://github.com/immortalwrt/immortalwrt) | Upstream ImmortalWRT (stable, oldstable, nightly) |
 
-## Coding Guidelines
+## Coding guidelines
 
-- **Commit messages** follow the `type(scope): subject` convention (`feat`, `fix`, `refactor`, `docs`, `chore`, …). Body wraps at 72 columns and explains *why*, not *what*.
-- **Shell** — `set -Eeuo pipefail`, no bashisms in POSIX scripts, colour output via `lib/functions.sh::display_alert`. Prefer dedicated logging helpers over raw `echo`.
-- **YAML workflows** — `permissions:` declared at the top, secrets passed via `secrets: inherit` on reusable callers, every step has a `name:`.
-- **Comments** — write *why*, not *what*. Avoid multi-paragraph docstrings. Never reference PR numbers or commit hashes in source comments.
-- **PRs** — single concern per PR. Run `bash -n` on every touched script and validate YAML before pushing. Rebase, don't merge-commit.
+- Commit messages use `type(scope): subject` (`feat`, `fix`, `refactor`, `docs`, `chore`, ...). Wrap the body at 72 columns and explain why, not what.
+- Shell: `set -Eeuo pipefail` in Bash scripts, no Bash features in POSIX scripts, output through `display_alert` in `lib/functions.sh` instead of raw `echo`.
+- Workflows: declare `permissions:` at the top, pass secrets with `secrets: inherit` to reusable workflows, give every step a `name:`.
+- Comments say why, not what. Keep them short, and never mention pull request numbers or commit hashes.
+- Pull requests: one change each. Run `bash -n` on every script you touch and validate the YAML before pushing. Rebase instead of merge commits.
