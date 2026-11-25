@@ -155,8 +155,18 @@ jobs:
         run: |
           set -euo pipefail
           : "${GIT_ASKPASS:?Git authentication helper was not configured}"
-          if ! git ls-remote --exit-code https://github.com/SuperKali/openwrt-packages.git refs/heads/main > /dev/null 2>&1; then
-            echo '::error::PERSONAL_ACCESS_TOKEN cannot read SuperKali/openwrt-packages refs/heads/main.'
+          FEED_BRANCH="$(jq -er '.feed_branch | select(type == "string" and length > 0)' "config/$BANANAWRT_VERSION_LINE/version.json")"
+          FEED_CHECK_DIR="$(mktemp -d "${RUNNER_TEMP:-/tmp}/bananawrt-feed-check.XXXXXX")"
+          trap 'rm -rf -- "$FEED_CHECK_DIR"' EXIT
+          (cd "$FEED_CHECK_DIR" && /bin/bash "$GITHUB_WORKSPACE/scripts/builder/custom-repository.sh" "$FEED_BRANCH" > /dev/null)
+          read -r feed_type feed_name feed_spec < "$FEED_CHECK_DIR/feeds.conf.default"
+          if [ "$feed_type" != src-git ] || [ "$feed_name" != additional_pack ] || [ "${feed_spec##*;}" != "$FEED_BRANCH" ]; then
+            echo '::error::Unable to resolve the additional_pack feed configuration.'
+            exit 1
+          fi
+          FEED_URL="${feed_spec%;*}"
+          if ! (cd "$FEED_CHECK_DIR" && git ls-remote --exit-code "$FEED_URL" "refs/heads/$FEED_BRANCH" > /dev/null 2>&1); then
+            echo '::error::Unable to read the configured additional_pack feed branch. Check the feed URL, branch, and token access.'
             exit 1
           fi
 
