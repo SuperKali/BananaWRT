@@ -11,6 +11,9 @@
 name: BananaWRT Builder (MTK Vendor)
 
 on:
+  push:
+    branches:
+      - build/mtk-vendor-debug
   repository_dispatch:
   workflow_dispatch:
     inputs:
